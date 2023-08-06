@@ -90,7 +90,7 @@ func main() {
 		account.Balance,
 		account.OrderList,
 	)
-	// go task.Run()
+	go task.Run()
 
 	arbitrageManager := core.NewArbitrageManager(
 		config.Config.Symbols.BookTickerASymbol,
@@ -120,7 +120,6 @@ func main() {
 			account.Balance.AddBalanceView(ui)
 		}
 		ui.Run()
-		logrus.Info("Exit", syscall.SIGINT)
 	}
 
 	c := make(chan os.Signal)
