@@ -113,7 +113,8 @@ func (b *BALANCE) updateBinanceBalance() {
 func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 	res, err := utils.NewBinanceClient().NewGetAccountService().Do(context.Background())
 	if err != nil {
-		panic("获取币安现货余额数量失败: " + err.Error())
+		logrus.Error("Get binance spot balances failed: " + err.Error())
+		return
 	}
 
 	for _, v := range res.Balances {
@@ -122,14 +123,14 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 			if free.LessThan(decimal.NewFromFloat(*b.bnbMinQty)) {
 				if !next && *b.autoBuyBNB {
 					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, decimal.NewFromFloat(*b.autoBuyBNBQty))
-					logrus.Infof("BNB不足---尝试使用%s购买", assets[0])
+					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
 					b.updateBinanceSpotBalance(true, assets...)
 					return
 				}
 
-				logrus.Warn("BNB不足---程序停止")
+				logrus.Error("BNB not sufficient --- Program stop")
 				time.Sleep(time.Second * 4)
-				panic("币安现货bnb数量不足")
+				panic("BNB not sufficient")
 			}
 		}
 
@@ -145,7 +146,8 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 	res, err := utils.NewBinanceFuturesClient().NewGetAccountService().Do(context.Background())
 	if err != nil {
-		panic("获取币安合约钱包余额失败: " + err.Error())
+		logrus.Error("Get binance future balances failed: " + err.Error())
+		return
 	}
 
 	for _, v := range res.Assets {
@@ -155,7 +157,7 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 				if !next && *b.autoBuyBNB {
 					// buy
 					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, decimal.NewFromFloat(*b.autoBuyBNBQty))
-					logrus.Infof("BNB不足---尝试使用%v购买", assets[0])
+					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
 
 					// BUG: transfer to futures
 					utils.NewBinanceClient().NewFuturesTransferService().Asset("BNB").Amount("").Type(binancesdk.FuturesTransferTypeToFutures).Do(context.Background())
@@ -163,9 +165,9 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 					return
 				}
 
-				logrus.Warn("BNB不足---程序停止")
+				logrus.Error("BNB not sufficient --- Program stop")
 				time.Sleep(time.Second * 4)
-				panic("币安合约bnb数量不足")
+				panic("BNB not sufficient")
 			}
 		}
 

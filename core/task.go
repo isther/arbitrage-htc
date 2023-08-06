@@ -220,7 +220,7 @@ func (t *Task) completeTask() {
 	logrus.Infof("Task progress: %d/%d", t.completedCnt, *t.cycleNumber)
 	t.Balance.BalanceUpdate()
 	if *t.cycleNumber == t.completedCnt {
-		logrus.Warnf("Task completed", t.completedCnt)
+		logrus.Info("Task completed", t.completedCnt)
 		time.Sleep(time.Second * 4)
 		panic("Task completed, exit")
 	}
@@ -228,7 +228,6 @@ func (t *Task) completeTask() {
 
 func (t *Task) trade() {
 	if t.bookTickerASymbolEvent == nil || t.stableCoinSymbolEvent == nil || t.bookTickerBSymbolEvent == nil {
-		logrus.Debug("Get nil event")
 		return
 	}
 
@@ -443,7 +442,6 @@ func (t *Task) close(
 						bookTickerBSymbolBidPrice,
 						*t.maxQty,
 					); ok {
-						logrus.Info("close ratio:", ratio.Mul(ratioBase))
 						return id
 					}
 				}
@@ -484,7 +482,6 @@ func (t *Task) close(
 						bookTickerBSymbolAskPrice,
 						*t.maxQty,
 					); ok {
-						logrus.Info("close ratio:", ratio.Mul(ratioBase))
 						return id
 					}
 				}
@@ -774,7 +771,7 @@ func (t *Task) binanceTrade(symbol string, side binancesdk.SideType, qty string)
 		Quantity(qty).
 		Do(context.Background())
 	if err != nil {
-		logrus.Warn(res, err)
+		logrus.Error(res, err)
 		return "", false
 	}
 	return fmt.Sprintln(res.OrderID), true
@@ -791,7 +788,7 @@ func (t *Task) binanceFuturesTrade(symbol string, side futures.SideType, qty str
 		if strings.Contains(err.Error(), "code=-1001") { // Internal error
 			// do
 		}
-		logrus.Warn(res, err)
+		logrus.Error(res, err)
 		return "", false
 	}
 	return fmt.Sprintln(res.OrderID), true
