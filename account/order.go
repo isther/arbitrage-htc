@@ -16,14 +16,14 @@ import (
 
 type OrderList interface {
 	Run()
-	OrderIDsUpdate(orderIDs *OrderIDs)
+	OrderIDsUpdate(orderIDs *OrderIDs) (*OrderInfo, *OrderInfo)
 }
 
 type ORDER struct {
 	isFuture *bool
 
-	binanceOrders   map[string]order
-	binanceOrdersCh chan order
+	binanceOrders   map[string]OrderInfo
+	binanceOrdersCh chan OrderInfo
 
 	L sync.RWMutex
 }
@@ -34,7 +34,7 @@ type OrderIDs struct {
 	CloseOrderID string
 }
 
-type order struct {
+type OrderInfo struct {
 	ID    string
 	Price decimal.Decimal
 	Qty   decimal.Decimal
@@ -43,8 +43,8 @@ type order struct {
 func NewORDER(isFuture *bool) *ORDER {
 	return &ORDER{
 		isFuture:        isFuture,
-		binanceOrders:   make(map[string]order),
-		binanceOrdersCh: make(chan order),
+		binanceOrders:   make(map[string]OrderInfo),
+		binanceOrdersCh: make(chan OrderInfo),
 		L:               sync.RWMutex{},
 	}
 }
@@ -66,8 +66,8 @@ func (o *ORDER) Run() {
 	}
 }
 
-func (o *ORDER) OrderIDsUpdate(orderIDs *OrderIDs) {
-	o.profitLog(orderIDs)
+func (o *ORDER) OrderIDsUpdate(orderIDs *OrderIDs) (*OrderInfo, *OrderInfo) {
+	return o.getOrders(orderIDs)
 }
 
 func (o *ORDER) startBinanceAccountServer() {
@@ -153,7 +153,7 @@ func (o *ORDER) orderUpdate(orderUpdate binancesdk.WsOrderUpdate) {
 	case "NEW":
 	case "CANCELED":
 	case "FILLED":
-		o.binanceOrdersCh <- order{
+		o.binanceOrdersCh <- OrderInfo{
 			ID:    fmt.Sprintln(orderUpdate.Id),
 			Price: utils.StringToDecimal(orderUpdate.LatestPrice),
 			Qty:   utils.StringToDecimal(orderUpdate.FilledVolume),
@@ -169,7 +169,7 @@ func (o *ORDER) futuresOrderUpdate(orderUpdate futures.WsOrderTradeUpdate) {
 	case "NEW":
 	case "CANCELED":
 	case "FILLED":
-		o.binanceOrdersCh <- order{
+		o.binanceOrdersCh <- OrderInfo{
 			ID:    fmt.Sprintln(orderUpdate.ID),
 			Price: utils.StringToDecimal(orderUpdate.LastFilledPrice),
 			Qty:   utils.StringToDecimal(orderUpdate.LastFilledQty),
@@ -180,43 +180,13 @@ func (o *ORDER) futuresOrderUpdate(orderUpdate futures.WsOrderTradeUpdate) {
 	}
 }
 
-func (o *ORDER) profitLog(orderIDs *OrderIDs) {
-	openBinanceOrder, closeBinanceOrder, ok := o.getOrders(orderIDs)
-	if !ok {
-		logrus.Info("Failed to get binance order")
-		return
-	}
-
+func (o *ORDER) getOrders(orderIds *OrderIDs) (*OrderInfo, *OrderInfo) {
 	var (
-		profit = decimal.Zero
-		msg    string
-	)
-
-	switch orderIDs.Mode {
-	case 1:
-		profit = closeBinanceOrder.Price.Sub(openBinanceOrder.Price)
-	case 2:
-		profit = openBinanceOrder.Price.Sub(closeBinanceOrder.Price)
-	default:
-		panic("Invalid mode")
-	}
-
-	msg = fmt.Sprintf("Mode%d \n[Open]: BTC/USDT: %s\n[Close]: BTC/USDT: %s\n[Actual profit] BTC/USDT: %s",
-		orderIDs.Mode,
-		openBinanceOrder.Price.String(),
-		closeBinanceOrder.Price.String(),
-		profit.String(),
-	)
-
-	logrus.Infof(msg)
-}
-
-func (o *ORDER) getOrders(orderIds *OrderIDs) (openBinanceOrder, closeBinanceOrder order, ok bool) {
-	var (
-		wg          sync.WaitGroup
-		ticker      = time.NewTicker(time.Millisecond * 10)
-		ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*20000)
-		cnt         atomic.Int64
+		wg                                  sync.WaitGroup
+		ticker                              = time.NewTicker(time.Millisecond * 10)
+		ctx, cancel                         = context.WithTimeout(context.Background(), time.Millisecond*20000)
+		cnt                                 atomic.Int64
+		openBinanceOrder, closeBinanceOrder OrderInfo
 	)
 	defer cancel()
 
@@ -224,6 +194,7 @@ func (o *ORDER) getOrders(orderIds *OrderIDs) (openBinanceOrder, closeBinanceOrd
 	go func() {
 		defer wg.Done()
 
+		var ok bool
 		if openBinanceOrder, ok = o.getBinanceOrderWithContext(orderIds.OpenOrderID, ticker, ctx); ok {
 			cnt.Add(1)
 		} else {
@@ -235,37 +206,31 @@ func (o *ORDER) getOrders(orderIds *OrderIDs) (openBinanceOrder, closeBinanceOrd
 	go func() {
 		defer wg.Done()
 
+		var ok bool
 		if closeBinanceOrder, ok = o.getBinanceOrderWithContext(orderIds.CloseOrderID, ticker, ctx); ok {
 			cnt.Add(1)
 		} else {
 			logrus.Info("Failed to get binance close order")
 		}
 	}()
-
 	wg.Wait()
 	o.clearOrders()
 
-	// if cnt.Load() != 4 {
-	if cnt.Load() != 2 {
-		return openBinanceOrder, closeBinanceOrder, false
-	} else {
-		return openBinanceOrder, closeBinanceOrder, true
-	}
-
+	return &openBinanceOrder, &closeBinanceOrder
 }
 
 func (o *ORDER) clearOrders() {
 	o.L.Lock()
 	defer o.L.Unlock()
 
-	o.binanceOrders = make(map[string]order)
+	o.binanceOrders = make(map[string]OrderInfo)
 }
 
-func (o *ORDER) getBinanceOrderWithContext(id string, ticker *time.Ticker, ctx context.Context) (order, bool) {
+func (o *ORDER) getBinanceOrderWithContext(id string, ticker *time.Ticker, ctx context.Context) (OrderInfo, bool) {
 	for {
 		select {
 		case <-ctx.Done():
-			return order{}, false
+			return OrderInfo{}, false
 		case <-ticker.C:
 			if order, ok := o.getBinanceOrder(id); ok {
 				return order, ok
@@ -274,7 +239,7 @@ func (o *ORDER) getBinanceOrderWithContext(id string, ticker *time.Ticker, ctx c
 	}
 }
 
-func (o *ORDER) getBinanceOrder(id string) (order, bool) {
+func (o *ORDER) getBinanceOrder(id string) (OrderInfo, bool) {
 	o.L.RLock()
 	defer o.L.RUnlock()
 

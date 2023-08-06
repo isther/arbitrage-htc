@@ -36,7 +36,7 @@ var (
 	}
 )
 
-func Load(filename string) {
+func (c *AppConfig) Load(filename string) {
 	viper.SetConfigFile(filename)
 	if err := viper.ReadInConfig(); err != nil {
 		logrus.Errorf("Read config error: %v, create a new config file", err.Error())
@@ -51,11 +51,11 @@ func Load(filename string) {
 		viper.SafeWriteConfig()
 	}
 
-	viper.Unmarshal(&Config)
+	viper.Unmarshal(c)
 	viper.WatchConfig()
 }
 
-func Save(filename string) {
+func (c *AppConfig) Save(filename string) {
 	res, err := yaml.Marshal(Config)
 	if err != nil {
 		panic("Marshal config error")

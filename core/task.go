@@ -16,17 +16,54 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+/*
+							==> UNFILLED										==> END
+INIT	==>	PROCESSOPEN		==> FILLED		==> PROCESSCLOSE	==> FILLED		==> END
+																==> UNFILLED	==> END
+*/
+
+var ratioBase = decimal.NewFromInt(10000)
+
+type TaskStatus int
+
+var (
+	INIT         TaskStatus = 0
+	PROCESSOPEN  TaskStatus = 1
+	PROCESSCLOSE TaskStatus = 2
+	FILLED       TaskStatus = 3
+	UNFILLED     TaskStatus = 4
+)
+
+func (t TaskStatus) String() string {
+	switch t {
+	case INIT:
+		return "INIT"
+	case PROCESSOPEN:
+		return "PROCESSOPEN"
+	case PROCESSCLOSE:
+		return "PROCESSCLOSE"
+	case FILLED:
+		return "FILLED"
+	case UNFILLED:
+		return "UNFILLED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 type TaskInfoView interface {
 	TaskInfo() string
 }
 
 func (t *Task) TaskInfo() string {
 	return fmt.Sprintf(
-		"Status:%v|Progress:%v/%v|TradeSymbol:%v|mode1:%v|mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v\n",
+		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Profit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v\n",
 		t.status,
 		t.completedCnt,
-		t.cycleNumber,
+		*t.cycleNumber,
 		t.bookTickerBSymbol,
+		*t.maxQty,
+		t.profit.String(),
 		t.mode1Ratio.String(),
 		t.mode2Ratio.String(),
 		t.minRatio,
@@ -49,7 +86,7 @@ type Task struct {
 	isFuture          *bool
 	onlyMode1         *bool
 	maxQty            *string
-	cycleNumber       int
+	cycleNumber       *int
 	waitDuration      *int64 // ms
 	closeTimeOut      *int64 // ms
 	minRatio          decimal.Decimal
@@ -68,6 +105,8 @@ type Task struct {
 	openStableCoinPrice        decimal.Decimal
 	openBookTickerBSymbolPrice decimal.Decimal
 
+	profit decimal.Decimal
+
 	openID  string
 	closeID string
 
@@ -83,7 +122,7 @@ func NewTask(
 	binanceSecretKey string,
 	isFOK, isFuture, OnlyMode1 *bool,
 	maxQty *string,
-	cycleNumber int,
+	cycleNumber *int,
 	waitDuration, closeTimeOut *int64,
 	ratio, minRatio, maxRatio float64,
 	bookTickerASymbol, stableCoinSymbol, bookTickerBSymbol string,
@@ -108,11 +147,13 @@ func NewTask(
 		waitDuration:      waitDuration,
 		closeTimeOut:      closeTimeOut,
 		profitRatio:       decimal.NewFromFloat(ratio),
-		minRatio:          decimal.NewFromFloat(minRatio).Div(base),
-		maxRatio:          decimal.NewFromFloat(maxRatio).Div(base),
+		minRatio:          decimal.NewFromFloat(minRatio).Div(ratioBase),
+		maxRatio:          decimal.NewFromFloat(maxRatio).Div(ratioBase),
 		bookTickerASymbol: strings.ToUpper(bookTickerASymbol),
 		stableCoinSymbol:  strings.ToUpper(stableCoinSymbol),
 		bookTickerBSymbol: strings.ToUpper(bookTickerBSymbol),
+
+		profit: decimal.Zero,
 
 		doCh:   make(chan struct{}),
 		stopCh: make(chan struct{}),
@@ -172,13 +213,16 @@ func (t *Task) Init() {
 }
 
 func (t *Task) completeTask() {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
 	t.completedCnt++
-	logrus.Infof("任务进度: %d/%d", t.completedCnt, t.cycleNumber)
+	logrus.Infof("Task progress: %d/%d", t.completedCnt, *t.cycleNumber)
 	t.Balance.BalanceUpdate()
-	if t.cycleNumber == t.completedCnt {
-		logrus.Warnf("已完成任务%d次，程序停止。", t.completedCnt)
+	if *t.cycleNumber == t.completedCnt {
+		logrus.Warnf("Task completed", t.completedCnt)
 		time.Sleep(time.Second * 4)
-		panic("完成任务,程序停止")
+		panic("Task completed, exit")
 	}
 }
 
@@ -189,10 +233,7 @@ func (t *Task) trade() {
 	}
 
 	if t.status == INIT {
-		// Open
-		// Check
-		// 1. 网络延达超过?ms，暂停套利?秒
-		// 2. BTC振福超过?万，暂停套利?秒
+		// Check and Open
 		if !klinePauser.Value() && !timeoutPauser.Value() {
 			t.status = PROCESSOPEN
 			t.closeRatio, t.openStableCoinPrice, t.openBookTickerASymbolPrice, t.openBookTickerBSymbolPrice,
@@ -212,11 +253,35 @@ func (t *Task) trade() {
 
 			t.closeID = t.close(ctx)
 
-			t.OrderList.OrderIDsUpdate(&account.OrderIDs{
-				Mode:         t.mode.Load(),
-				OpenOrderID:  t.openID,
-				CloseOrderID: t.closeID,
-			})
+			go func(mode int32, openID, closeID string) {
+				openOrder, closeOrder := t.OrderList.OrderIDsUpdate(&account.OrderIDs{
+					Mode:         mode,
+					OpenOrderID:  openID,
+					CloseOrderID: closeID,
+				})
+
+				var profit decimal.Decimal
+				switch mode {
+				case 1:
+					profit = closeOrder.Price.Sub(openOrder.Price)
+				case 2:
+					profit = openOrder.Price.Sub(closeOrder.Price)
+				default:
+					panic("Invalid mode")
+				}
+
+				logrus.Info(fmt.Sprintf("Mode%d \n[Open]: BTC/USDT: %s\n[Close]: BTC/USDT: %s\n[Actual profit] BTC/USDT: %s",
+					mode,
+					openOrder.Price.String(),
+					closeOrder.Price.String(),
+					profit.String(),
+				))
+
+				t.lock.Lock()
+				defer t.lock.Unlock()
+				t.profit = t.profit.Add(profit)
+
+			}(t.mode.Load(), t.openID, t.closeID)
 			t.completeTask()
 			return
 		}
@@ -249,8 +314,7 @@ func (t *Task) open() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decima
 
 }
 
-// 模式1
-// （tusd/usdt区的买1价）减去（btc/usdt区卖1价除以btc/tusd区买1价）大于万0.7 小于万1.5
+// Mode1
 func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, string) {
 	// Prepare price
 	t.lock.RLock()
@@ -290,8 +354,7 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 	return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 }
 
-// 模式2
-// （1除以tusd/usdt区的卖1价）减去（btc/tusd区卖1价除以btc/usdt区买1价）大于万0.7 小于万1.5
+// Mode2
 func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, string) {
 	// Prepare price
 	t.lock.RLock()
@@ -352,12 +415,12 @@ func (t *Task) close(
 						*t.maxQty,
 					); ok {
 
-						logrus.Infof("模式1开仓后亏损，平仓。开仓价: %s, ask价格: %s, 价差: %s",
+						logrus.Infof("Mode1 loss after open, force close. Open price: %s, ask: %s, amount of loss: %s",
 							t.openBookTickerBSymbolPrice.String(),
 							bookTickerBSymbolAskPrice.String(),
 							t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolAskPrice).String(),
 						)
-						t.profitLog(t.openBookTickerASymbolPrice, bookTickerBSymbolAskPrice)
+						t.expectProfitLog(bookTickerBSymbolAskPrice)
 						return id
 					}
 				}
@@ -372,7 +435,7 @@ func (t *Task) close(
 
 				if ratioMode2.GreaterThanOrEqual(ratio) {
 					logrus.Info("[Close[]", t.ratioLog(ratioMode2, t.openStableCoinPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-					t.profitLog(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice)
+					t.expectProfitLog(bookTickerBSymbolBidPrice)
 
 					// Trade
 					if id, ok := t.tradeMode2(
@@ -380,7 +443,7 @@ func (t *Task) close(
 						bookTickerBSymbolBidPrice,
 						*t.maxQty,
 					); ok {
-						logrus.Info("close ratio:", ratio.Mul(base))
+						logrus.Info("close ratio:", ratio.Mul(ratioBase))
 						return id
 					}
 				}
@@ -393,12 +456,12 @@ func (t *Task) close(
 						bookTickerBSymbolAskPrice,
 						*t.maxQty,
 					); ok {
-						logrus.Infof("模式2开仓后亏损，平仓。开仓价: %s, bid价格: %s, 价差: %s",
+						logrus.Infof("Mode2 loss after open, force close. Open price: %s, bid: %s, amount of loss: %s",
 							t.openBookTickerBSymbolPrice.String(),
 							bookTickerBSymbolBidPrice.String(),
 							t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolBidPrice).String(),
 						)
-						t.profitLog(t.openBookTickerASymbolPrice, bookTickerBSymbolBidPrice)
+						t.expectProfitLog(bookTickerBSymbolBidPrice)
 						return id
 					}
 				}
@@ -413,7 +476,7 @@ func (t *Task) close(
 
 				if ratioMode1.GreaterThanOrEqual(ratio) {
 					logrus.Info("[Close[]:", t.ratioLog(ratioMode1, t.openStableCoinPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice))
-					t.profitLog(bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice)
+					t.expectProfitLog(bookTickerBSymbolAskPrice)
 
 					// Trade
 					if id, ok := t.tradeMode1(
@@ -421,7 +484,7 @@ func (t *Task) close(
 						bookTickerBSymbolAskPrice,
 						*t.maxQty,
 					); ok {
-						logrus.Info("close ratio:", ratio.Mul(base))
+						logrus.Info("close ratio:", ratio.Mul(ratioBase))
 						return id
 					}
 				}
@@ -447,7 +510,7 @@ func (t *Task) foreceClose() (orderID string) {
 				bookTickerBSymbolBidPrice,
 			),
 		)
-		t.profitLog(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice)
+		t.expectProfitLog(bookTickerBSymbolBidPrice)
 
 		if id, ok := t.tradeMode2(
 			false,
@@ -471,7 +534,7 @@ func (t *Task) foreceClose() (orderID string) {
 				bookTickerBSymbolAskPrice,
 			),
 		)
-		t.profitLog(bookTickerBSymbolBidPrice, bookTickerBSymbolAskPrice)
+		t.expectProfitLog(bookTickerBSymbolAskPrice)
 
 		if id, ok := t.tradeMode1(
 			false,
@@ -602,7 +665,7 @@ func (t *Task) ratioLog(ratio, stableSymbolPrice, taPrice, tbPrice decimal.Decim
 	)
 }
 
-func (t *Task) profitLog(closeBootTickerASymbolPrice, closeBookTickerBSymbolPrice decimal.Decimal) {
+func (t *Task) expectProfitLog(closeBookTickerBSymbolPrice decimal.Decimal) {
 	var (
 		profit = decimal.Zero
 	)
@@ -624,7 +687,30 @@ func (t *Task) profitLog(closeBootTickerASymbolPrice, closeBookTickerBSymbolPric
 	)
 
 	logrus.Infof(msg)
+}
 
+func (t *Task) actualProfitLog(closeBookTickerBSymbolPrice decimal.Decimal) {
+	var (
+		profit = decimal.Zero
+	)
+
+	switch t.mode.Load() {
+	case 1:
+		profit = closeBookTickerBSymbolPrice.Sub(t.openBookTickerBSymbolPrice)
+	case 2:
+		profit = t.openBookTickerBSymbolPrice.Sub(closeBookTickerBSymbolPrice)
+	default:
+		panic("Invalid mode")
+	}
+
+	msg := fmt.Sprintf("Mode%d \n[Open[]: BTC/USDT: %s\n[Close[]: BTC/USDT: %s\n[Expect profit[]: %s",
+		t.mode.Load(),
+		t.openBookTickerBSymbolPrice.String(),
+		closeBookTickerBSymbolPrice.String(),
+		profit.String(),
+	)
+
+	logrus.Infof(msg)
 }
 
 func (t *Task) binanceFOKTrade(symbol string, side binancesdk.SideType, price, qty string) (string, bool) {
@@ -637,14 +723,14 @@ func (t *Task) binanceFOKTrade(symbol string, side binancesdk.SideType, price, q
 		Type(binancesdk.OrderTypeLimit).Price(price).Quantity(qty).
 		Do(context.Background())
 	if err != nil {
-		logrus.Infof("现货FOK下单---错误: %v, %s", res, err)
+		logrus.Infof("Spot FOK Order --- Error: %v, %s", res, err)
 		time.Sleep(time.Millisecond * 66)
 		return "", false
 	}
 
 	switch res.Status {
 	case binancesdk.OrderStatusTypeExpired:
-		logrus.Info("现货FOK下单---未抢到，Expired")
+		logrus.Info("Spot FOK Order --- Failed，Expired")
 		time.Sleep(time.Millisecond * 66)
 		return "", false
 	case binancesdk.OrderStatusTypeFilled:
@@ -664,14 +750,14 @@ func (t *Task) binanceFuturesFOKTrade(symbol string, side futures.SideType, pric
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(context.Background())
 	if err != nil {
-		logrus.Infof("合约FOK下单---错误: %v, %s", res, err)
+		logrus.Infof("Future FOK Order --- Error: %v, %s", res, err.Error())
 		time.Sleep(time.Millisecond * 66)
 		return "", false
 	}
 
 	switch res.Status {
 	case futures.OrderStatusTypeExpired:
-		logrus.Info("合约FOK下单---未抢到，Expired")
+		logrus.Info("Future FOK Order --- Failed，Expired")
 		time.Sleep(time.Millisecond * 66)
 		return "", false
 	case futures.OrderStatusTypeFilled:

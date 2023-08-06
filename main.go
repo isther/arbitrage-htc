@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	config.Load("config.yaml")
+	config.Config.Load("config.yaml")
 
 	logrus.SetReportCaller(false)
 	logrus.SetFormatter(&config.LogFormatter{})
@@ -84,7 +84,7 @@ func main() {
 		&config.Config.IsFuture,
 		&config.Config.OnlyMode1,
 		&config.Config.MaxQty,
-		config.Config.CycleNumber,
+		&config.Config.CycleNumber,
 		&config.Config.WaitDuration,
 		&config.Config.CloseTimeOut,
 		config.Config.RatioProfit,
@@ -97,16 +97,17 @@ func main() {
 		account.Balance,
 		account.OrderList,
 	)
-	go task.Run()
+	// go task.Run()
 	arbitrageManager.AddUpdateEvent(task)
 	// Start
-	arbitrageManager.Run()
 
 	if config.Config.Mode.UI {
+		go arbitrageManager.Run()
+
 		ui := tui.NewTui(
 			[]string{config.Config.BookTickerASymbol, config.Config.StableCoinSymbol, config.Config.BookTickerBSymbol},
 			func() {
-				config.Save("config.yaml")
+				config.Config.Save("../config.yaml")
 			},
 			[]core.TaskInfoView{task},
 		)
@@ -116,8 +117,7 @@ func main() {
 			account.Balance.AddBalanceView(ui)
 		}
 		ui.Run()
+	} else {
+		arbitrageManager.Run()
 	}
-
-	doneC := make(chan struct{})
-	<-doneC
 }

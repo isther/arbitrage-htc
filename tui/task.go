@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/isther/arbitrage-htc/core"
@@ -32,12 +31,11 @@ func (t *TuiTaskInfo) Item() *tview.Table {
 }
 
 func (t *TuiTaskInfo) Update() {
-	for taskNum, taskInfoView := range t.taskInfoViews {
+	for _, taskInfoView := range t.taskInfoViews {
 		info := taskInfoView.TaskInfo()
-		t.info.SetCell(1, taskNum, tview.NewTableCell(fmt.Sprintf("Task%v", taskNum)).SetExpansion(1).SetAlign(tview.AlignCenter))
 		for i, word := range strings.Split(info, "|") {
 			for k, v := range strings.Split(word, ":") {
-				t.info.SetCell(k, i+1, tview.NewTableCell(v).SetExpansion(1).SetAlign(tview.AlignCenter))
+				t.info.SetCell(k, i, tview.NewTableCell(v).SetExpansion(1).SetAlign(tview.AlignCenter))
 			}
 		}
 	}

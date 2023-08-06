@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	binanceWsServiceRestartCh = make(chan struct{})
+	klineRatioBase = decimal.NewFromInt(10000)
 )
 
 type BookTickerEventUpdater interface {
@@ -54,9 +54,9 @@ func NewArbitrageManager(
 }
 
 func (b *ArbitrageManager) Run() {
-	go b.ping()
 	go b.startBinanceBookTickerWebsocket()
 	go b.startCheckBinanceKline()
+	b.ping()
 }
 
 // Get binance book ticker
