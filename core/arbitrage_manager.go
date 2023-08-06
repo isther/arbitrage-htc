@@ -54,9 +54,9 @@ func NewArbitrageManager(
 }
 
 func (b *ArbitrageManager) Run() {
+	go b.ping()
 	go b.startBinanceBookTickerWebsocket()
 	go b.startCheckBinanceKline()
-	b.ping()
 }
 
 // Get binance book ticker

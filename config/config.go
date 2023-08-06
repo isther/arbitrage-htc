@@ -10,9 +10,10 @@ import (
 
 var (
 	Config *AppConfig = &AppConfig{
-		Binance: &Binance{},
-		Mode:    &Mode{},
-		Symbols: &Symbols{},
+		Binance:  &Binance{},
+		Telegram: &Telegram{},
+		Mode:     &Mode{},
+		Symbols:  &Symbols{},
 		Fee: &Fee{
 			UseBNB:        false,
 			BNBMinQty:     0.0,
@@ -67,6 +68,7 @@ func (c *AppConfig) Save(filename string) {
 // AppConfig defines the config of the server
 type AppConfig struct {
 	*Binance
+	*Telegram
 	*Mode
 	*Symbols
 	*Fee
@@ -116,4 +118,8 @@ type Params struct {
 type DingDing struct {
 	AccessToken string
 	Secrect     string
+}
+
+type Telegram struct {
+	Token string
 }

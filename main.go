@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	binancesdk "github.com/adshao/go-binance/v2"
@@ -12,6 +14,7 @@ import (
 	"github.com/isther/arbitrage-htc/config"
 	"github.com/isther/arbitrage-htc/core"
 	"github.com/isther/arbitrage-htc/dingding"
+	"github.com/isther/arbitrage-htc/telbot"
 	"github.com/isther/arbitrage-htc/tui"
 	"github.com/sirupsen/logrus"
 )
@@ -58,22 +61,12 @@ func init() {
 }
 
 func main() {
-	var (
-		arbitrageManager = core.NewArbitrageManager(
-			config.Config.Symbols.BookTickerASymbol,
-			config.Config.Symbols.StableCoinSymbol,
-			config.Config.Symbols.BookTickerBSymbol,
-			config.Config.Params.PauseMaxKlineRatio,
-			config.Config.Params.PauseMinKlineRatio,
-			config.Config.Params.PauseClientTimeOutLimit,
-		)
-		account = account.NewAccount(
-			&config.Config.Mode.IsFuture,
-			&config.Config.Fee.UseBNB,
-			&config.Config.Fee.BNBMinQty,
-			&config.Config.Fee.AutoBuyBNB,
-			&config.Config.Fee.AutoBuyBNBQty,
-		)
+	account := account.NewAccount(
+		&config.Config.Mode.IsFuture,
+		&config.Config.Fee.UseBNB,
+		&config.Config.Fee.BNBMinQty,
+		&config.Config.Fee.AutoBuyBNB,
+		&config.Config.Fee.AutoBuyBNBQty,
 	)
 	go account.Run()
 
@@ -98,18 +91,28 @@ func main() {
 		account.OrderList,
 	)
 	// go task.Run()
+
+	arbitrageManager := core.NewArbitrageManager(
+		config.Config.Symbols.BookTickerASymbol,
+		config.Config.Symbols.StableCoinSymbol,
+		config.Config.Symbols.BookTickerBSymbol,
+		config.Config.Params.PauseMaxKlineRatio,
+		config.Config.Params.PauseMinKlineRatio,
+		config.Config.Params.PauseClientTimeOutLimit,
+	)
 	arbitrageManager.AddUpdateEvent(task)
+	go arbitrageManager.Run()
+
+	telBot := telbot.NewTelBot(config.Config.Telegram.Token, account.Balance, task)
+	logrus.AddHook(telBot)
+	go telBot.Run()
+
 	// Start
-
 	if config.Config.Mode.UI {
-		go arbitrageManager.Run()
-
 		ui := tui.NewTui(
 			[]string{config.Config.BookTickerASymbol, config.Config.StableCoinSymbol, config.Config.BookTickerBSymbol},
-			func() {
-				config.Config.Save("../config.yaml")
-			},
-			[]core.TaskInfoView{task},
+			func() {},
+			[]core.TaskInfo{task},
 		)
 		{
 			logrus.AddHook(ui.Logger)
@@ -117,7 +120,17 @@ func main() {
 			account.Balance.AddBalanceView(ui)
 		}
 		ui.Run()
-	} else {
-		arbitrageManager.Run()
+		logrus.Info("Exit", syscall.SIGINT)
+	}
+
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	for s := range c {
+		switch s {
+		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+			config.Config.Save("config.yaml")
+			logrus.Info("Exit", s)
+			os.Exit(0)
+		}
 	}
 }

@@ -17,10 +17,22 @@ type Balance interface {
 	Run()
 	BalanceUpdate()
 	AddBalanceView(BalanceView)
+	BalanceInfo
 }
 
 type BalanceView interface {
 	View(map[string]string)
+}
+
+type BalanceInfo interface {
+	BalanceInfo() map[string]string
+}
+
+func (b *BALANCE) BalanceInfo() map[string]string {
+	b.L.Lock()
+	defer b.L.Unlock()
+
+	return b.balances
 }
 
 type BALANCE struct {

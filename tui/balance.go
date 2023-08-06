@@ -28,6 +28,7 @@ func (t *TuiBalance) View(balances map[string]string) {
 		cnt++
 	}
 }
+
 func (t *TuiBalance) Item() *tview.Table {
 	return t.table
 }

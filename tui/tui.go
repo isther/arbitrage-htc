@@ -45,7 +45,7 @@ type Tui struct {
 func NewTui(
 	symbols []string,
 	closeCallBack func(),
-	taskInfoView []core.TaskInfoView,
+	taskInfoView []core.TaskInfo,
 ) *Tui {
 	app := tview.NewApplication()
 	return &Tui{

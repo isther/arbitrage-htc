@@ -51,7 +51,7 @@ func (t TaskStatus) String() string {
 	}
 }
 
-type TaskInfoView interface {
+type TaskInfo interface {
 	TaskInfo() string
 }
 

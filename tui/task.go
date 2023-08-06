@@ -8,11 +8,11 @@ import (
 )
 
 type TuiTaskInfo struct {
-	info          *tview.Table
-	taskInfoViews []core.TaskInfoView
+	info      *tview.Table
+	taskInfos []core.TaskInfo
 }
 
-func NewTuiTaskInfo(taskInfoView []core.TaskInfoView) *TuiTaskInfo {
+func NewTuiTaskInfo(taskInfoView []core.TaskInfo) *TuiTaskInfo {
 	info := tview.NewTable()
 	info.
 		SetSelectable(false, false).
@@ -21,8 +21,8 @@ func NewTuiTaskInfo(taskInfoView []core.TaskInfoView) *TuiTaskInfo {
 
 	info.SetCell(0, 0, tview.NewTableCell(""))
 	return &TuiTaskInfo{
-		info:          info,
-		taskInfoViews: taskInfoView,
+		info:      info,
+		taskInfos: taskInfoView,
 	}
 }
 
@@ -31,7 +31,7 @@ func (t *TuiTaskInfo) Item() *tview.Table {
 }
 
 func (t *TuiTaskInfo) Update() {
-	for _, taskInfoView := range t.taskInfoViews {
+	for _, taskInfoView := range t.taskInfos {
 		info := taskInfoView.TaskInfo()
 		for i, word := range strings.Split(info, "|") {
 			for k, v := range strings.Split(word, ":") {
