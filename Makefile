@@ -7,3 +7,4 @@ docker-run:
 
 clear: 
 	@rm logs/*
+	@rm imgs/*

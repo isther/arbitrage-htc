@@ -2,11 +2,13 @@ package telbot
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/isther/arbitrage-htc/account"
 	"github.com/isther/arbitrage-htc/core"
+	"github.com/isther/arbitrage-htc/utils"
 	"github.com/sirupsen/logrus"
 	tele "gopkg.in/telebot.v3"
 )
@@ -54,27 +56,44 @@ func (t *TelBot) Run() {
 
 	t.Bot.Handle("/account", func(c tele.Context) error {
 		var (
-			msg      = "--Account--\n"
+			msg      string
 			balances = t.BalanceInfo.BalanceInfo()
 		)
 
 		for k, v := range balances {
-			msg += fmt.Sprintf("%s:%s\n", k, v)
+			msg += fmt.Sprintf("%s: %s\n", k, v)
 		}
-		c.Send(msg)
+		imgFilePath := filepath.Join("./imgs", fmt.Sprintf("account%d-%d", c.Chat().ID, time.Now().UTC().UnixMilli()))
+		utils.CreatePNG(msg, imgFilePath)
+		p := &tele.Photo{
+			File: tele.FromDisk(imgFilePath),
+		}
+		c.SendAlbum(tele.Album{p})
 		return nil
 	})
 
 	t.Bot.Handle("/task", func(c tele.Context) error {
 		var (
-			msg  = "--Task--\n"
+			msg  string
 			info = t.TaskInfo.TaskInfo()
 		)
-
-		for _, word := range strings.Split(info, "|") {
-			msg += fmt.Sprintf("%s\n", word)
+		for _, line := range strings.Split(info, "|") {
+			for k, word := range strings.Split(line, ":") {
+				switch k {
+				case 0:
+					msg += fmt.Sprintf("%s: ", word)
+				case 1:
+					msg += fmt.Sprintf("%s\n", word)
+				}
+			}
 		}
-		c.Send(msg)
+
+		imgFilePath := filepath.Join("./imgs", fmt.Sprintf("task%d-%d", c.Chat().ID, time.Now().UTC().UnixMilli()))
+		utils.CreatePNG(msg, imgFilePath)
+		p := &tele.Photo{
+			File: tele.FromDisk(imgFilePath),
+		}
+		c.SendAlbum(tele.Album{p})
 		return nil
 	})
 

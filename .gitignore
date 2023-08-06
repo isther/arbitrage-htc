@@ -1,3 +1,5 @@
-/logs
+/logs/*
+/imgs/*
 /cvm
 config.yaml
+.DS_Store
