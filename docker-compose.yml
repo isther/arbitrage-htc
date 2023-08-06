@@ -9,3 +9,5 @@ services:
     volumes:
       - ./config.yaml:/config.yaml
       - ./logs:/logs
+      - ./imgs:/imgs
+      - ./ttf:/ttf
