@@ -103,9 +103,11 @@ func main() {
 	arbitrageManager.AddUpdateEvent(task)
 	go arbitrageManager.Run()
 
-	telBot := telbot.NewTelBot(config.Config.Telegram.Token, account.Balance, task)
-	logrus.AddHook(telBot)
-	go telBot.Run()
+	if config.Config.Telegram.Token != "" {
+		telBot := telbot.NewTelBot(config.Config.Telegram.Token, account.Balance, task)
+		logrus.AddHook(telBot)
+		go telBot.Run()
+	}
 
 	// Start
 	if config.Config.Mode.UI {

@@ -25,7 +25,6 @@ func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
 	}
-	logrus.Info(token)
 
 	b, err := tele.NewBot(pref)
 	if err != nil {
