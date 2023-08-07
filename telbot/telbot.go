@@ -107,7 +107,8 @@ func (t *TelBot) AddEnableLogHandler() *TelBot {
 	t.Router.Message(
 		func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			if t.PeerID == nil {
-				t.PeerID = msg.SenderChat
+				t.PeerID = msg.Chat
+				t.log = true
 			}
 			return msg.Answer("Log enabled!").DoVoid(ctx)
 		},
@@ -390,7 +391,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 func (t *TelBot) Fire(entry *logrus.Entry) error {
 	msg := fmt.Sprintf("\n%s \n%s\n", entry.Time.Format("2006-01-02 15:04:05.000"), entry.Message)
 	if t.log {
-		t.Client.SendMessage(t.PeerID, msg).DoVoid(context.Background())
+		return t.Client.SendMessage(t.PeerID, msg).DoVoid(context.Background())
 	}
 
 	return nil
