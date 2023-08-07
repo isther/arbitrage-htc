@@ -102,9 +102,12 @@ type Task struct {
 	stableCoinSymbol  string
 	bookTickerBSymbol string
 
-	bookTickerASymbolEvent *binancesdk.WsBookTickerEvent
-	stableCoinSymbolEvent  *binancesdk.WsBookTickerEvent
-	bookTickerBSymbolEvent *binancesdk.WsBookTickerEvent
+	bookTickerASymbolAskPrice decimal.Decimal
+	bookTickerASymbolBidPrice decimal.Decimal
+	stableCoinSymbolAskPrice  decimal.Decimal
+	stableCoinSymbolBidPrice  decimal.Decimal
+	bookTickerBSymbolAskPrice decimal.Decimal
+	bookTickerBSymbolBidPrice decimal.Decimal
 
 	closeRatio                 decimal.Decimal
 	openBookTickerASymbolPrice decimal.Decimal
@@ -186,19 +189,22 @@ func (t *Task) UpdateBookTickerEvent(event *binancesdk.WsBookTickerEvent) {
 func (t *Task) updateBookTickerASymbolEvent(event *binancesdk.WsBookTickerEvent) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.bookTickerASymbolEvent = event
+	t.bookTickerASymbolAskPrice = utils.StringToDecimal(event.BestAskPrice)
+	t.bookTickerASymbolBidPrice = utils.StringToDecimal(event.BestBidPrice)
 }
 
 func (t *Task) updateStableCoinSymbolEvent(event *binancesdk.WsBookTickerEvent) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.stableCoinSymbolEvent = event
+	t.stableCoinSymbolAskPrice = utils.StringToDecimal(event.BestAskPrice)
+	t.stableCoinSymbolBidPrice = utils.StringToDecimal(event.BestBidPrice)
 }
 
 func (t *Task) updateBookTickerBSymbolEvent(event *binancesdk.WsBookTickerEvent) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.bookTickerBSymbolEvent = event
+	t.bookTickerBSymbolAskPrice = utils.StringToDecimal(event.BestAskPrice)
+	t.bookTickerBSymbolBidPrice = utils.StringToDecimal(event.BestBidPrice)
 }
 
 func (t *Task) Run() {
@@ -243,7 +249,9 @@ func (t *Task) completeTask() {
 }
 
 func (t *Task) trade() {
-	if t.bookTickerASymbolEvent == nil || t.stableCoinSymbolEvent == nil || t.bookTickerBSymbolEvent == nil {
+	if t.bookTickerASymbolAskPrice.IsZero() || t.bookTickerBSymbolBidPrice.IsZero() ||
+		t.stableCoinSymbolAskPrice.IsZero() || t.stableCoinSymbolBidPrice.IsZero() ||
+		t.bookTickerBSymbolAskPrice.IsZero() || t.bookTickerBSymbolBidPrice.IsZero() {
 		return
 	}
 
@@ -337,13 +345,7 @@ func (t *Task) open() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decima
 // Mode1
 func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, string) {
 	// Prepare price
-	t.lock.RLock()
-	stableSymbolBidPrice, _ := decimal.NewFromString(t.stableCoinSymbolEvent.BestBidPrice)
-	bookTickerBSymbolAskPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestAskPrice)
-	bookTickerASymbolBidPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestBidPrice)
-	t.lock.RUnlock()
-
-	ratioMode1, ok := t.calculateRatioMode1(bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, stableSymbolBidPrice)
+	ratioMode1, ok := t.calculateRatioMode1(t.bookTickerASymbolBidPrice, t.bookTickerBSymbolAskPrice, t.stableCoinSymbolBidPrice)
 	if !ok {
 		t.status = INIT
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
@@ -351,19 +353,15 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 
 	if ratioMode1.GreaterThanOrEqual(t.minRatio) && ratioMode1.LessThanOrEqual(t.maxRatio) {
 		t.mode.Store(1)
-		logrus.Info("[Open[]", t.ratioLog(ratioMode1, stableSymbolBidPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice))
-		price := utils.StringToDecimal(bookTickerBSymbolAskPrice.String()).Add(decimal.NewFromInt(1))
+		logrus.Info("[Open[]", t.ratioLog(ratioMode1, t.stableCoinSymbolBidPrice, t.bookTickerASymbolBidPrice, t.bookTickerBSymbolAskPrice))
+		price := t.bookTickerBSymbolAskPrice.Add(decimal.NewFromInt(1))
 		if id, ok := t.tradeMode1(
 			true,
 			price,
 			*t.maxQty,
 		); ok {
-			t.lock.RLock()
-			stableSymbolAskPrice, _ := decimal.NewFromString(t.stableCoinSymbolEvent.BestAskPrice)
-			t.lock.RUnlock()
-
 			t.status = FILLED
-			return ratioMode1, stableSymbolAskPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, id
+			return ratioMode1, t.stableCoinSymbolAskPrice, t.bookTickerASymbolBidPrice, t.bookTickerBSymbolAskPrice, id
 		} else {
 			t.status = UNFILLED
 			return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
@@ -376,14 +374,7 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 
 // Mode2
 func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decimal.Decimal, string) {
-	// Prepare price
-	t.lock.RLock()
-	stableSymbolAskPrice, _ := decimal.NewFromString(t.stableCoinSymbolEvent.BestAskPrice)
-	bookTickerASymbolAskPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestAskPrice)
-	bookTickerBSymbolBidPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestBidPrice)
-	t.lock.RUnlock()
-
-	ratioMode2, ok := t.calculateRatioMode2(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, stableSymbolAskPrice)
+	ratioMode2, ok := t.calculateRatioMode2(t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice, t.stableCoinSymbolAskPrice)
 	if !ok {
 		t.status = INIT
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
@@ -391,19 +382,16 @@ func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 
 	if ratioMode2.GreaterThanOrEqual(t.minRatio) && ratioMode2.LessThanOrEqual(t.maxRatio) {
 		t.mode.Store(2)
-		logrus.Info("[Open[]", t.ratioLog(ratioMode2, stableSymbolAskPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-		price := utils.StringToDecimal(bookTickerBSymbolBidPrice.String()).Sub(decimal.NewFromInt(1))
+		logrus.Info("[Open[]", t.ratioLog(ratioMode2, t.stableCoinSymbolAskPrice, t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice))
+		price := t.bookTickerBSymbolBidPrice.Sub(decimal.NewFromInt(1))
 		if id, ok := t.tradeMode2(
 			true,
 			price,
 			*t.maxQty,
 		); ok {
-			t.lock.RLock()
-			stableSymbolBidPrice, _ := decimal.NewFromString(t.stableCoinSymbolEvent.BestBidPrice)
-			t.lock.RUnlock()
 
 			t.status = FILLED
-			return ratioMode2, stableSymbolBidPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, id
+			return ratioMode2, t.stableCoinSymbolBidPrice, t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice, id
 		} else {
 			t.status = UNFILLED
 			return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
@@ -426,81 +414,75 @@ func (t *Task) close(
 		default:
 			switch t.mode.Load() {
 			case 1:
-				bookTickerBSymbolAskPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestAskPrice)
-				bookTickerBSymbolBidPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestBidPrice)
-				if t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolAskPrice).Cmp(decimal.NewFromFloat(1.0)) > 0 {
+				if t.openBookTickerBSymbolPrice.Sub(t.bookTickerBSymbolAskPrice).Cmp(decimal.NewFromFloat(1.0)) > 0 {
 					if id, ok := t.tradeMode2(
 						false,
-						bookTickerBSymbolBidPrice,
+						t.bookTickerBSymbolBidPrice,
 						*t.maxQty,
 					); ok {
 
 						logrus.Infof("Mode1 loss after open, force close. Open price: %s, ask: %s, amount of loss: %s",
 							t.openBookTickerBSymbolPrice.String(),
-							bookTickerBSymbolAskPrice.String(),
-							t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolAskPrice).String(),
+							t.bookTickerBSymbolAskPrice.String(),
+							t.openBookTickerBSymbolPrice.Sub(t.bookTickerBSymbolAskPrice).String(),
 						)
-						t.expectProfitLog(bookTickerBSymbolAskPrice)
+						t.expectProfitLog(t.bookTickerBSymbolAskPrice)
 						return id
 					}
 				}
 
 				// Do mode 2
 				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(t.profitRatio)
-				bookTickerASymbolAskPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestAskPrice)
-				ratioMode2, ok := t.calculateRatioMode2(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, t.openStableCoinPrice)
+				ratioMode2, ok := t.calculateRatioMode2(t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice, t.openStableCoinPrice)
 				if !ok {
 					continue
 				}
 
 				if ratioMode2.GreaterThanOrEqual(ratio) {
-					logrus.Info("[Close[]", t.ratioLog(ratioMode2, t.openStableCoinPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-					t.expectProfitLog(bookTickerBSymbolBidPrice)
+					logrus.Info("[Close[]", t.ratioLog(ratioMode2, t.openStableCoinPrice, t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice))
+					t.expectProfitLog(t.bookTickerBSymbolBidPrice)
 
 					// Trade
 					if id, ok := t.tradeMode2(
 						false,
-						bookTickerBSymbolBidPrice,
+						t.bookTickerBSymbolBidPrice,
 						*t.maxQty,
 					); ok {
 						return id
 					}
 				}
 			case 2:
-				bookTickerBSymbolBidPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestBidPrice)
-				bookTickerBSymbolAskPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestAskPrice)
-				if t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolBidPrice).Cmp(decimal.NewFromFloat(-1.0)) < 0 {
+				if t.openBookTickerBSymbolPrice.Sub(t.bookTickerBSymbolBidPrice).Cmp(decimal.NewFromFloat(-1.0)) < 0 {
 					if id, ok := t.tradeMode1(
 						false,
-						bookTickerBSymbolAskPrice,
+						t.bookTickerBSymbolAskPrice,
 						*t.maxQty,
 					); ok {
 						logrus.Infof("Mode2 loss after open, force close. Open price: %s, bid: %s, amount of loss: %s",
 							t.openBookTickerBSymbolPrice.String(),
-							bookTickerBSymbolBidPrice.String(),
-							t.openBookTickerBSymbolPrice.Sub(bookTickerBSymbolBidPrice).String(),
+							t.bookTickerBSymbolBidPrice.String(),
+							t.openBookTickerBSymbolPrice.Sub(t.bookTickerBSymbolBidPrice).String(),
 						)
-						t.expectProfitLog(bookTickerBSymbolBidPrice)
+						t.expectProfitLog(t.bookTickerBSymbolBidPrice)
 						return id
 					}
 				}
 
 				// 做模式1
 				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(t.profitRatio)
-				bookTickerASymbolBidPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestBidPrice)
-				ratioMode1, ok := t.calculateRatioMode1(bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, t.openStableCoinPrice)
+				ratioMode1, ok := t.calculateRatioMode1(t.bookTickerASymbolBidPrice, t.bookTickerBSymbolAskPrice, t.openStableCoinPrice)
 				if !ok {
 					continue
 				}
 
 				if ratioMode1.GreaterThanOrEqual(ratio) {
-					logrus.Info("[Close[]:", t.ratioLog(ratioMode1, t.openStableCoinPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice))
-					t.expectProfitLog(bookTickerBSymbolAskPrice)
+					logrus.Info("[Close[]:", t.ratioLog(ratioMode1, t.openStableCoinPrice, t.bookTickerASymbolBidPrice, t.bookTickerBSymbolAskPrice))
+					t.expectProfitLog(t.bookTickerBSymbolAskPrice)
 
 					// Trade
 					if id, ok := t.tradeMode1(
 						false,
-						bookTickerBSymbolAskPrice,
+						t.bookTickerBSymbolAskPrice,
 						*t.maxQty,
 					); ok {
 						return id
@@ -514,49 +496,41 @@ func (t *Task) close(
 func (t *Task) foreceClose() (orderID string) {
 	switch t.mode.Load() {
 	case 1:
-		// Get Price
-		bookTickerASymbolAskPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestAskPrice)
-		bookTickerBSymbolBidPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestBidPrice)
-
 		// Log
-		ratio, _ := t.calculateRatioMode2(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, t.openStableCoinPrice)
+		ratio, _ := t.calculateRatioMode2(t.bookTickerASymbolAskPrice, t.bookTickerBSymbolBidPrice, t.openStableCoinPrice)
 		logrus.Info("[Force close[]",
 			t.ratioLog(
 				ratio,
 				t.openStableCoinPrice,
-				bookTickerASymbolAskPrice,
-				bookTickerBSymbolBidPrice,
+				t.bookTickerASymbolAskPrice,
+				t.bookTickerBSymbolBidPrice,
 			),
 		)
-		t.expectProfitLog(bookTickerBSymbolBidPrice)
+		t.expectProfitLog(t.bookTickerBSymbolBidPrice)
 
 		if id, ok := t.tradeMode2(
 			false,
-			bookTickerBSymbolBidPrice,
+			t.bookTickerBSymbolBidPrice,
 			*t.maxQty,
 		); ok {
 			return id
 		}
 	case 2:
-		// Get Price
-		bookTickerBSymbolBidPrice, _ := decimal.NewFromString(t.bookTickerASymbolEvent.BestAskPrice)
-		bookTickerBSymbolAskPrice, _ := decimal.NewFromString(t.bookTickerBSymbolEvent.BestBidPrice)
-
 		// Log
-		ratio, _ := t.calculateRatioMode1(bookTickerBSymbolBidPrice, bookTickerBSymbolAskPrice, t.openStableCoinPrice)
+		ratio, _ := t.calculateRatioMode1(t.bookTickerBSymbolBidPrice, t.bookTickerBSymbolAskPrice, t.openStableCoinPrice)
 		logrus.Info("[Force close[]",
 			t.ratioLog(
 				ratio,
 				t.openStableCoinPrice,
-				bookTickerBSymbolBidPrice,
-				bookTickerBSymbolAskPrice,
+				t.bookTickerBSymbolBidPrice,
+				t.bookTickerBSymbolAskPrice,
 			),
 		)
-		t.expectProfitLog(bookTickerBSymbolAskPrice)
+		t.expectProfitLog(t.bookTickerBSymbolAskPrice)
 
 		if id, ok := t.tradeMode1(
 			false,
-			bookTickerBSymbolAskPrice,
+			t.bookTickerBSymbolAskPrice,
 			*t.maxQty,
 		); ok {
 			return id
