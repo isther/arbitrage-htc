@@ -227,7 +227,13 @@ func (t *Task) completeTask() {
 	defer t.lock.Unlock()
 
 	t.completedCnt++
-	logrus.Infof("Task progress: %d/%d", t.completedCnt, *t.cycleNumber)
+	logrus.Infof("Task progress: %d/%d gain: %s, deficit: %s, profit: %s",
+		t.completedCnt,
+		*t.cycleNumber,
+		t.gain.String(),
+		t.deficit.String(),
+		t.profit.String(),
+	)
 	t.Balance.BalanceUpdate()
 	if *t.cycleNumber == t.completedCnt {
 		logrus.Info("Task completed", t.completedCnt)
@@ -254,8 +260,6 @@ func (t *Task) trade() {
 	} else {
 		if t.status == FILLED ||
 			(t.status == UNFILLED && !*t.isFOK) {
-			time.Sleep(100 * time.Millisecond)
-
 			// Close
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*t.closeTimeOut)*time.Millisecond)
 			defer cancel()
@@ -318,6 +322,7 @@ func (t *Task) open() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decima
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 	}
 
+	t.status = PROCESSOPEN
 	ratio, stableSymbolPrice, bookTickerASymbolPrice, bookTickerBSymbolPrice, tradeID = t.openMode2()
 	switch t.status {
 	case FILLED:
@@ -736,15 +741,15 @@ func (t *Task) binanceFOKTrade(symbol string, side binancesdk.SideType, price, q
 		Type(binancesdk.OrderTypeLimit).Price(price).Quantity(qty).
 		Do(context.Background())
 	if err != nil {
-		logrus.Infof("Spot FOK Order --- Error: %v, %s", res, err)
-		time.Sleep(time.Millisecond * 66)
+		logrus.Errorf("Spot FOK Order --- Error: %v, %s", res, err)
+		time.Sleep(time.Millisecond * 50)
 		return "", false
 	}
 
 	switch res.Status {
 	case binancesdk.OrderStatusTypeExpired:
-		logrus.Info("Spot FOK Order --- Failed，Expired")
-		time.Sleep(time.Millisecond * 66)
+		logrus.Error("Spot FOK Order --- Failed，Expired")
+		time.Sleep(time.Millisecond * 50)
 		return "", false
 	case binancesdk.OrderStatusTypeFilled:
 		return fmt.Sprintln(res.OrderID), true
@@ -763,15 +768,15 @@ func (t *Task) binanceFuturesFOKTrade(symbol string, side futures.SideType, pric
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(context.Background())
 	if err != nil {
-		logrus.Infof("Future FOK Order --- Error: %v, %s", res, err.Error())
-		time.Sleep(time.Millisecond * 66)
+		logrus.Errorf("Future FOK Order --- Error: %v, %s", res, err.Error())
+		time.Sleep(time.Millisecond * 50)
 		return "", false
 	}
 
 	switch res.Status {
 	case futures.OrderStatusTypeExpired:
-		logrus.Info("Future FOK Order --- Failed，Expired")
-		time.Sleep(time.Millisecond * 66)
+		logrus.Error("Future FOK Order --- Failed，Expired")
+		time.Sleep(time.Millisecond * 50)
 		return "", false
 	case futures.OrderStatusTypeFilled:
 		return fmt.Sprintln(res.OrderID), true
