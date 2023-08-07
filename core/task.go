@@ -57,7 +57,7 @@ type TaskInfo interface {
 
 func (t *Task) TaskInfo() string {
 	return fmt.Sprintf(
-		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Gain:%v|Profit:%v|Deficit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v|isFOK:%v|isFuture:%v|WaitDuration:%v|CloseTimeOut:%v\n",
+		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Gain:%v|Profit:%v|Deficit:%v|Mode1:%v|Mode2:%v|isFOK:%v|StandardIndex:%v|isFuture:%v|WaitDuration:%v|CloseTimeOut:%v\n",
 		t.status,
 		t.completedCnt,
 		*t.cycleNumber,
@@ -68,10 +68,8 @@ func (t *Task) TaskInfo() string {
 		t.deficit.String(),
 		t.mode1Ratio.String(),
 		t.mode2Ratio.String(),
-		t.minRatio,
-		t.maxRatio,
-		t.profitRatio,
 		*t.isFOK,
+		*t.standardPriceIndex,
 		*t.isFuture,
 		*t.waitDuration,
 		*t.closeTimeOut,
@@ -88,19 +86,20 @@ type Task struct {
 	mode1Ratio   decimal.Decimal
 	mode2Ratio   decimal.Decimal
 
-	isFOK             *bool
-	isFuture          *bool
-	onlyMode1         *bool
-	maxQty            *string
-	cycleNumber       *int
-	waitDuration      *int64 // ms
-	closeTimeOut      *int64 // ms
-	minRatio          decimal.Decimal
-	maxRatio          decimal.Decimal
-	profitRatio       decimal.Decimal
-	bookTickerASymbol string
-	stableCoinSymbol  string
-	bookTickerBSymbol string
+	standardPriceIndex *string
+	isFOK              *bool
+	isFuture           *bool
+	onlyMode1          *bool
+	maxQty             *string
+	cycleNumber        *int
+	waitDuration       *int64 // ms
+	closeTimeOut       *int64 // ms
+	minRatio           decimal.Decimal
+	maxRatio           decimal.Decimal
+	profitRatio        decimal.Decimal
+	bookTickerASymbol  string
+	stableCoinSymbol   string
+	bookTickerBSymbol  string
 
 	bookTickerASymbolAskPrice decimal.Decimal
 	bookTickerASymbolBidPrice decimal.Decimal
@@ -131,6 +130,7 @@ type Task struct {
 func NewTask(
 	binanceApiKey,
 	binanceSecretKey string,
+	standardIndex *string,
 	isFOK, isFuture, OnlyMode1 *bool,
 	maxQty *string,
 	cycleNumber *int,
@@ -150,19 +150,20 @@ func NewTask(
 		mode1Ratio: decimal.Zero,
 		mode2Ratio: decimal.Zero,
 
-		isFOK:             isFOK,
-		isFuture:          isFuture,
-		onlyMode1:         OnlyMode1,
-		maxQty:            maxQty,
-		cycleNumber:       cycleNumber,
-		waitDuration:      waitDuration,
-		closeTimeOut:      closeTimeOut,
-		profitRatio:       decimal.NewFromFloat(ratio),
-		minRatio:          decimal.NewFromFloat(minRatio).Div(ratioBase),
-		maxRatio:          decimal.NewFromFloat(maxRatio).Div(ratioBase),
-		bookTickerASymbol: strings.ToUpper(bookTickerASymbol),
-		stableCoinSymbol:  strings.ToUpper(stableCoinSymbol),
-		bookTickerBSymbol: strings.ToUpper(bookTickerBSymbol),
+		standardPriceIndex: standardIndex,
+		isFOK:              isFOK,
+		isFuture:           isFuture,
+		onlyMode1:          OnlyMode1,
+		maxQty:             maxQty,
+		cycleNumber:        cycleNumber,
+		waitDuration:       waitDuration,
+		closeTimeOut:       closeTimeOut,
+		profitRatio:        decimal.NewFromFloat(ratio),
+		minRatio:           decimal.NewFromFloat(minRatio).Div(ratioBase),
+		maxRatio:           decimal.NewFromFloat(maxRatio).Div(ratioBase),
+		bookTickerASymbol:  strings.ToUpper(bookTickerASymbol),
+		stableCoinSymbol:   strings.ToUpper(stableCoinSymbol),
+		bookTickerBSymbol:  strings.ToUpper(bookTickerBSymbol),
 
 		gain:    decimal.Zero,
 		profit:  decimal.Zero,
@@ -359,7 +360,7 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 	if ratioMode1.GreaterThanOrEqual(t.minRatio) && ratioMode1.LessThanOrEqual(t.maxRatio) {
 		t.mode.Store(1)
 		logrus.Info("[Open[]", t.ratioLog(ratioMode1, stableCoinSymbolBidPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice))
-		price := bookTickerBSymbolAskPrice.Add(decimal.NewFromInt(1))
+		price := bookTickerBSymbolAskPrice.Add(utils.StringToDecimal(*t.standardPriceIndex))
 		if id, ok := t.tradeMode1(
 			true,
 			price,
@@ -394,7 +395,7 @@ func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 	if ratioMode2.GreaterThanOrEqual(t.minRatio) && ratioMode2.LessThanOrEqual(t.maxRatio) {
 		t.mode.Store(2)
 		logrus.Info("[Open[]", t.ratioLog(ratioMode2, stableCoinSymbolAskPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-		price := bookTickerBSymbolBidPrice.Sub(decimal.NewFromInt(1))
+		price := bookTickerBSymbolBidPrice.Sub(utils.StringToDecimal(*t.standardPriceIndex))
 		if id, ok := t.tradeMode2(
 			true,
 			price,

@@ -223,6 +223,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		CycleNumberSetting
 		WaitDurationSetting
 		CloseTimeoutSetting
+		StandardPriceIndexSetting
 		Quit
 	)
 
@@ -234,14 +235,15 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 	var (
 		settingsMap = map[string]SettingType{
-			"Qty":          QtySetting,
-			"isFOK":        FOKSetting,
-			"isFuture":     FutureSetting,
-			"OnlyMode1":    OnlyMode1Setting,
-			"CycleNumber":  CycleNumberSetting,
-			"WaitDuration": WaitDurationSetting,
-			"CloseTimeout": CloseTimeoutSetting,
-			"Quit":         Quit,
+			"Qty":                QtySetting,
+			"isFOK":              FOKSetting,
+			"isFuture":           FutureSetting,
+			"OnlyMode1":          OnlyMode1Setting,
+			"CycleNumber":        CycleNumberSetting,
+			"WaitDuration":       WaitDurationSetting,
+			"CloseTimeout":       CloseTimeoutSetting,
+			"StandardPriceIndex": StandardPriceIndexSetting,
+			"Quit":               Quit,
 		}
 
 		settings = []string{
@@ -252,6 +254,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			"CycleNumber",
 			"WaitDuration",
 			"CloseTimeout",
+			"StandardPriceIndex",
 			"Quit",
 		}
 
@@ -307,7 +310,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			}
 
 			switch value {
-			case QtySetting:
+			case QtySetting, StandardPriceIndexSetting:
 				session.Step = SessionStringInputting
 			case FOKSetting, FutureSetting, OnlyMode1Setting:
 				session.Step = SessionBoolInputting
@@ -380,6 +383,8 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch session.SettingType {
 			case QtySetting:
 				config.Config.MaxQty = msg.Text
+			case StandardPriceIndexSetting:
+				config.Config.StandardPriceIndex = msg.Text
 			}
 
 			sessionManager.Reset(session)

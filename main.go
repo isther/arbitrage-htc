@@ -62,6 +62,7 @@ func main() {
 	task := core.NewTask(
 		config.Config.Api,
 		config.Config.Secret,
+		&config.Config.StandardPriceIndex,
 		&config.Config.IsFOK,
 		&config.Config.IsFuture,
 		&config.Config.OnlyMode1,

@@ -109,6 +109,7 @@ type Params struct {
 	PauseClientTimeOutLimit int64   // ms
 	WaitDuration            int64   // ms
 	MaxQty                  string
+	StandardPriceIndex      string
 }
 
 type Telegram struct {
