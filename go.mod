@@ -3,7 +3,6 @@ module github.com/isther/arbitrage-htc
 go 1.19
 
 require (
-	github.com/CatchZeng/dingtalk v1.5.0
 	github.com/adshao/go-binance/v2 v2.4.4
 	github.com/fogleman/gg v1.3.0
 	github.com/mr-linch/go-tg v0.9.1
@@ -20,7 +19,6 @@ require (
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/gdamore/tcell/v2 v2.6.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

@@ -278,8 +278,9 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				session := sessionManager.Get(ctx)
 				session.Step = SessionSelectSetting
 
-				buttonLayout := tg.NewButtonLayout[tg.KeyboardButton](1)
-				for key := range settingsMap {
+				buttonLayout := tg.NewButtonLayout[tg.KeyboardButton](3)
+
+				for _, key := range settings {
 					buttonLayout.Insert(tg.NewKeyboardButton(key))
 				}
 
