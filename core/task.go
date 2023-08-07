@@ -57,13 +57,15 @@ type TaskInfo interface {
 
 func (t *Task) TaskInfo() string {
 	return fmt.Sprintf(
-		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Profit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v|isFOK:%v|isFuture:%v|WaitDuration:%v|CloseTimeOut:%v\n",
+		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Gain:%v|Profit:%v|Deficit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v|isFOK:%v|isFuture:%v|WaitDuration:%v|CloseTimeOut:%v\n",
 		t.status,
 		t.completedCnt,
 		*t.cycleNumber,
 		t.bookTickerBSymbol,
 		*t.maxQty,
+		t.gain.String(),
 		t.profit.String(),
+		t.deficit.String(),
 		t.mode1Ratio.String(),
 		t.mode2Ratio.String(),
 		t.minRatio,
@@ -109,7 +111,9 @@ type Task struct {
 	openStableCoinPrice        decimal.Decimal
 	openBookTickerBSymbolPrice decimal.Decimal
 
-	profit decimal.Decimal
+	gain    decimal.Decimal
+	profit  decimal.Decimal
+	deficit decimal.Decimal
 
 	openID  string
 	closeID string
@@ -157,7 +161,9 @@ func NewTask(
 		stableCoinSymbol:  strings.ToUpper(stableCoinSymbol),
 		bookTickerBSymbol: strings.ToUpper(bookTickerBSymbol),
 
-		profit: decimal.Zero,
+		gain:    decimal.Zero,
+		profit:  decimal.Zero,
+		deficit: decimal.Zero,
 
 		doCh:   make(chan struct{}),
 		stopCh: make(chan struct{}),
@@ -282,7 +288,13 @@ func (t *Task) trade() {
 
 				t.lock.Lock()
 				defer t.lock.Unlock()
-				t.profit = t.profit.Add(profit)
+				if profit.IsPositive() {
+					t.gain = t.gain.Add(profit)
+				} else {
+					t.deficit = t.deficit.Add(profit)
+				}
+
+				t.profit = t.gain.Add(t.deficit)
 
 			}(t.mode.Load(), t.openID, t.closeID)
 			t.completeTask()
