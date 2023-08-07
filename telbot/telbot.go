@@ -62,6 +62,15 @@ func (t *TelBot) Run() {
 	// Clear commands
 	t.Client.DeleteMyCommands().DoVoid(t.ctx)
 
+	t.Client.SetMyCommands(
+		[]tg.BotCommand{
+			{Command: "log_enable", Description: "Enable log"},
+			{Command: "log_disable", Description: "Disable log"},
+			{Command: "account", Description: "Get account info"},
+			{Command: "task", Description: "Get task info"},
+			{Command: "settings", Description: "Setting"},
+		}).DoVoid(t.ctx)
+
 	t.
 		AddStartHandler().
 		AddEnableLogHandler().AddDisableLogHandler().
@@ -95,11 +104,6 @@ func (t *TelBot) AddStartHandler() *TelBot {
 }
 
 func (t *TelBot) AddEnableLogHandler() *TelBot {
-	t.Client.SetMyCommands(
-		[]tg.BotCommand{
-			{Command: "log_enable", Description: "Enable log"},
-		}).DoVoid(t.ctx)
-
 	t.Router.Message(
 		func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			if t.PeerID == nil {
@@ -113,11 +117,6 @@ func (t *TelBot) AddEnableLogHandler() *TelBot {
 }
 
 func (t *TelBot) AddDisableLogHandler() *TelBot {
-	t.Client.SetMyCommands(
-		[]tg.BotCommand{
-			{Command: "log_disable", Description: "Disable log"},
-		}).DoVoid(t.ctx)
-
 	t.Router.Message(
 		func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			return msg.Answer("Log Disabled!").DoVoid(ctx)
@@ -128,11 +127,6 @@ func (t *TelBot) AddDisableLogHandler() *TelBot {
 }
 
 func (t *TelBot) AddAccountHandler() *TelBot {
-	t.Client.SetMyCommands(
-		[]tg.BotCommand{
-			{Command: "account", Description: "Get account info"},
-		}).DoVoid(t.ctx)
-
 	t.Router.Message(
 		func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			if err := msg.Update.Reply(ctx, msg.AnswerChatAction(tg.ChatActionUploadPhoto)); err != nil {
@@ -168,11 +162,6 @@ func (t *TelBot) AddAccountHandler() *TelBot {
 }
 
 func (t *TelBot) AddTaskHandler() *TelBot {
-	t.Client.SetMyCommands(
-		[]tg.BotCommand{
-			{Command: "task", Description: "Get task info"},
-		}).DoVoid(t.ctx)
-
 	t.Router.Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 		if err := msg.Update.Reply(ctx, msg.AnswerChatAction(tg.ChatActionUploadPhoto)); err != nil {
 			logrus.Errorf("answer chat action: %v", err)
@@ -214,11 +203,6 @@ func (t *TelBot) AddTaskHandler() *TelBot {
 }
 
 func (t *TelBot) AddSettingHandler() *TelBot {
-	t.Client.SetMyCommands(
-		[]tg.BotCommand{
-			{Command: "settings", Description: "Setting"},
-		}).DoVoid(t.ctx)
-
 	type SessionStep int8
 	const (
 		SessionStepInit SessionStep = iota
@@ -383,7 +367,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 			sessionManager.Reset(session)
 			return msg.Update.Reply(ctx, msg.Answer("Setting was saved"))
-		}, isSessionStep(SessionIntInputting), tgb.TextIn([]string{"true", "false"})).
+		}, isSessionStep(SessionBoolInputting), tgb.TextIn([]string{"true", "false"})).
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			return msg.Update.Reply(ctx, msg.Answer("Please, send me just boolean value"))
 		}, isSessionStep(SessionBoolInputting), tgb.Not(tgb.TextIn([]string{"true", "false"}))).
