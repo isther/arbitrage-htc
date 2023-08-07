@@ -394,7 +394,7 @@ func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 	if ratioMode2.GreaterThanOrEqual(t.minRatio) && ratioMode2.LessThanOrEqual(t.maxRatio) {
 		t.mode.Store(2)
 		logrus.Info("[Open[]", t.ratioLog(ratioMode2, stableCoinSymbolAskPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-		price := t.bookTickerBSymbolBidPrice.Sub(decimal.NewFromInt(1))
+		price := bookTickerBSymbolBidPrice.Sub(decimal.NewFromInt(1))
 		if id, ok := t.tradeMode2(
 			true,
 			price,
