@@ -109,9 +109,9 @@ func (t *TelBot) AddEnableLogHandler() *TelBot {
 			if t.PeerID == nil {
 				t.PeerID = msg.SenderChat
 			}
-			return msg.Answer("Log enabled").DoVoid(ctx)
+			return msg.Answer("Log enabled!").DoVoid(ctx)
 		},
-		tgb.Command("log_enable!"),
+		tgb.Command("log_enable"),
 	)
 	return t
 }
@@ -119,7 +119,7 @@ func (t *TelBot) AddEnableLogHandler() *TelBot {
 func (t *TelBot) AddDisableLogHandler() *TelBot {
 	t.Router.Message(
 		func(ctx context.Context, msg *tgb.MessageUpdate) error {
-			return msg.Answer("Log Disabled!").DoVoid(ctx)
+			return msg.Answer("Log disabled!").DoVoid(ctx)
 		},
 		tgb.Command("log_disable"),
 	)
