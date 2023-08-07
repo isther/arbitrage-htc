@@ -90,7 +90,7 @@ func main() {
 		account.Balance,
 		account.OrderList,
 	)
-	go task.Run()
+	// go task.Run()
 
 	arbitrageManager := core.NewArbitrageManager(
 		config.Config.Symbols.BookTickerASymbol,

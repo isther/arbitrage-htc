@@ -57,7 +57,7 @@ type TaskInfo interface {
 
 func (t *Task) TaskInfo() string {
 	return fmt.Sprintf(
-		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Profit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v\n",
+		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Profit:%v|Mode1:%v|Mode2:%v|MinRatio:%v|MaxRatio:%v|ProfitRatio:%v|isFOK:%v|isFuture:%v\n",
 		t.status,
 		t.completedCnt,
 		*t.cycleNumber,
@@ -69,6 +69,8 @@ func (t *Task) TaskInfo() string {
 		t.minRatio,
 		t.maxRatio,
 		t.profitRatio,
+		*t.isFOK,
+		*t.isFuture,
 	)
 }
 

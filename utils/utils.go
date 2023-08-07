@@ -26,7 +26,7 @@ func NewBinanceFuturesClient() *futures.Client {
 	return futures.NewClient(config.Config.Api, config.Config.Secret)
 }
 
-func CreatePNG(content, filename string) {
+func CreatePNG(content, filePath string) {
 	var (
 		maxLen int
 		cnt             = strings.Count(content, "\n")
@@ -60,5 +60,5 @@ func CreatePNG(content, filename string) {
 	for i, line := range lines {
 		dc.DrawString(line, 50, 50+float64(i)*points)
 	}
-	dc.SavePNG(filename)
+	dc.SavePNG(filePath)
 }
