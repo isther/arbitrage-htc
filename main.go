@@ -13,7 +13,6 @@ import (
 	"github.com/isther/arbitrage-htc/account"
 	"github.com/isther/arbitrage-htc/config"
 	"github.com/isther/arbitrage-htc/core"
-	"github.com/isther/arbitrage-htc/dingding"
 	"github.com/isther/arbitrage-htc/telbot"
 	"github.com/isther/arbitrage-htc/tui"
 	"github.com/sirupsen/logrus"
@@ -44,16 +43,6 @@ func init() {
 		logrus.SetOutput(io.MultiWriter(file))
 	} else {
 		logrus.SetOutput(io.MultiWriter(os.Stdout, file))
-	}
-
-	// Add dingding bot hook
-	if config.Config.DingDingLogConfig.AccessToken != "" && config.Config.DingDingLogConfig.Secrect != "" && config.Config.DingDingErrConfig.AccessToken != "" && config.Config.DingDingErrConfig.Secrect != "" {
-		logrus.AddHook(dingding.NewDingDingBotHook(
-			config.Config.DingDingLogConfig.AccessToken, config.Config.DingDingLogConfig.Secrect,
-			config.Config.DingDingErrConfig.AccessToken, config.Config.DingDingErrConfig.Secrect,
-			10000,
-			3000, // ms
-		))
 	}
 
 	// binance websocket keepalive

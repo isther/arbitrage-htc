@@ -32,8 +32,6 @@ var (
 			WaitDuration:            0,
 			MaxQty:                  "0.0",
 		},
-		DingDingLogConfig: &DingDing{},
-		DingDingErrConfig: &DingDing{},
 	}
 )
 
@@ -73,8 +71,6 @@ type AppConfig struct {
 	*Symbols
 	*Fee
 	*Params
-	DingDingLogConfig *DingDing
-	DingDingErrConfig *DingDing
 }
 
 type Binance struct {
@@ -113,11 +109,6 @@ type Params struct {
 	PauseClientTimeOutLimit int64   // ms
 	WaitDuration            int64   // ms
 	MaxQty                  string
-}
-
-type DingDing struct {
-	AccessToken string
-	Secrect     string
 }
 
 type Telegram struct {
