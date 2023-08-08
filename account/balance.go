@@ -140,7 +140,7 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 	for _, v := range priceRes {
 		if v.Symbol == "BTCUSDT" {
 			price := utils.StringToDecimal(v.Price)
-			if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+			if usdt.Sub(btc.Mul(price)).Abs().LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
 				b.canBuy = false
 			}
 		}
@@ -195,7 +195,7 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 	for _, v := range priceRes {
 		if v.Symbol == "BTCUSDT" {
 			price := utils.StringToDecimal(v.Price)
-			if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+			if usdt.Sub(btc.Mul(price)).Abs().LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
 				b.canBuy = false
 			}
 		}
