@@ -14,6 +14,7 @@ import (
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 /*
@@ -24,20 +25,22 @@ INIT	==>	PROCESSOPEN		==> FILLED		==> PROCESSCLOSE	==> FILLED		==> END
 
 var ratioBase = decimal.NewFromInt(10000)
 
-type TaskStatus int
+type TaskStatus int8
 
-var (
-	INIT         TaskStatus = 0
-	PROCESSOPEN  TaskStatus = 1
-	PROCESSCLOSE TaskStatus = 2
-	FILLED       TaskStatus = 3
-	UNFILLED     TaskStatus = 4
+const (
+	RUNNING TaskStatus = iota
+	PROCESSOPEN
+	PROCESSCLOSE
+	FILLED
+	UNFILLED
+	PAUSE
+	STOP
 )
 
 func (t TaskStatus) String() string {
 	switch t {
-	case INIT:
-		return "INIT"
+	case RUNNING:
+		return "RUNNING"
 	case PROCESSOPEN:
 		return "PROCESSOPEN"
 	case PROCESSCLOSE:
@@ -46,34 +49,11 @@ func (t TaskStatus) String() string {
 		return "FILLED"
 	case UNFILLED:
 		return "UNFILLED"
+	case STOP:
+		return "STOP"
 	default:
 		return "UNKNOWN"
 	}
-}
-
-type TaskInfo interface {
-	TaskInfo() string
-}
-
-func (t *Task) TaskInfo() string {
-	return fmt.Sprintf(
-		"Status:%v|Progress:%v/%v|TradeSymbol:%v|Qty:%v|Gain:%v|Profit:%v|Deficit:%v|Mode1:%v|Mode2:%v|isFOK:%v|StandardIndex:%v|isFuture:%v|WaitDuration:%v|CloseTimeOut:%v\n",
-		t.status,
-		t.completedCnt,
-		*t.cycleNumber,
-		t.bookTickerBSymbol,
-		*t.maxQty,
-		t.gain.String(),
-		t.profit.String(),
-		t.deficit.String(),
-		t.mode1Ratio.String(),
-		t.mode2Ratio.String(),
-		*t.isFOK,
-		*t.standardPriceIndex,
-		*t.isFuture,
-		*t.waitDuration,
-		*t.closeTimeOut,
-	)
 }
 
 type Task struct {
@@ -82,24 +62,18 @@ type Task struct {
 	account.OrderList
 
 	status       TaskStatus
+	mode         atomic.Int32
 	completedCnt int
-	mode1Ratio   decimal.Decimal
-	mode2Ratio   decimal.Decimal
+	gain         decimal.Decimal
+	profit       decimal.Decimal
+	deficit      decimal.Decimal
 
-	standardPriceIndex *string
-	isFOK              *bool
-	isFuture           *bool
-	onlyMode1          *bool
-	maxQty             *string
-	cycleNumber        *int
-	waitDuration       *int64 // ms
-	closeTimeOut       *int64 // ms
-	minRatio           decimal.Decimal
-	maxRatio           decimal.Decimal
-	profitRatio        decimal.Decimal
-	bookTickerASymbol  string
-	stableCoinSymbol   string
-	bookTickerBSymbol  string
+	mode1Ratio decimal.Decimal
+	mode2Ratio decimal.Decimal
+
+	bookTickerASymbol string
+	stableCoinSymbol  string
+	bookTickerBSymbol string
 
 	bookTickerASymbolAskPrice decimal.Decimal
 	bookTickerASymbolBidPrice decimal.Decimal
@@ -113,61 +87,41 @@ type Task struct {
 	openStableCoinPrice        decimal.Decimal
 	openBookTickerBSymbolPrice decimal.Decimal
 
-	gain    decimal.Decimal
-	profit  decimal.Decimal
-	deficit decimal.Decimal
-
 	openID  string
 	closeID string
 
 	doCh   chan struct{}
 	stopCh chan struct{}
 
-	mode atomic.Int32
 	lock sync.RWMutex
 }
 
 func NewTask(
 	binanceApiKey,
 	binanceSecretKey string,
-	standardIndex *string,
-	isFOK, isFuture, OnlyMode1 *bool,
-	maxQty *string,
-	cycleNumber *int,
-	waitDuration, closeTimeOut *int64,
-	ratio, minRatio, maxRatio float64,
+	// other
 	bookTickerASymbol, stableCoinSymbol, bookTickerBSymbol string,
 	exchangeInfo account.ExchangeInfo,
 	balanceUpdate account.Balance,
 	orderUpdate account.OrderList,
 ) *Task {
 	return &Task{
-		status:       INIT,
 		ExchangeInfo: exchangeInfo,
 		Balance:      balanceUpdate,
 		OrderList:    orderUpdate,
 
+		status:       RUNNING,
+		completedCnt: 0,
+		gain:         decimal.Zero,
+		profit:       decimal.Zero,
+		deficit:      decimal.Zero,
+
 		mode1Ratio: decimal.Zero,
 		mode2Ratio: decimal.Zero,
 
-		standardPriceIndex: standardIndex,
-		isFOK:              isFOK,
-		isFuture:           isFuture,
-		onlyMode1:          OnlyMode1,
-		maxQty:             maxQty,
-		cycleNumber:        cycleNumber,
-		waitDuration:       waitDuration,
-		closeTimeOut:       closeTimeOut,
-		profitRatio:        decimal.NewFromFloat(ratio),
-		minRatio:           decimal.NewFromFloat(minRatio).Div(ratioBase),
-		maxRatio:           decimal.NewFromFloat(maxRatio).Div(ratioBase),
-		bookTickerASymbol:  strings.ToUpper(bookTickerASymbol),
-		stableCoinSymbol:   strings.ToUpper(stableCoinSymbol),
-		bookTickerBSymbol:  strings.ToUpper(bookTickerBSymbol),
-
-		gain:    decimal.Zero,
-		profit:  decimal.Zero,
-		deficit: decimal.Zero,
+		bookTickerASymbol: strings.ToUpper(bookTickerASymbol),
+		stableCoinSymbol:  strings.ToUpper(stableCoinSymbol),
+		bookTickerBSymbol: strings.ToUpper(bookTickerBSymbol),
 
 		doCh:   make(chan struct{}),
 		stopCh: make(chan struct{}),
@@ -211,6 +165,7 @@ func (t *Task) updateBookTickerBSymbolEvent(event *binancesdk.WsBookTickerEvent)
 func (t *Task) Run() {
 	// Init
 	t.mode.Store(0)
+	t.status = STOP
 
 	for {
 		select {
@@ -225,8 +180,8 @@ func (t *Task) Run() {
 
 func (t *Task) Init() {
 	t.mode.Store(0)
-	t.status = INIT
-	time.Sleep(time.Duration(*t.waitDuration) * time.Millisecond)
+	t.status = RUNNING
+	time.Sleep(viper.GetDuration("WaitDuration"))
 }
 
 func (t *Task) completeTask() {
@@ -234,15 +189,8 @@ func (t *Task) completeTask() {
 	defer t.lock.Unlock()
 
 	t.completedCnt++
-	logrus.Infof("Task progress: %d/%d gain: %s, deficit: %s, profit: %s",
-		t.completedCnt,
-		*t.cycleNumber,
-		t.gain.String(),
-		t.deficit.String(),
-		t.profit.String(),
-	)
 	t.Balance.BalanceUpdate()
-	if *t.cycleNumber == t.completedCnt {
+	if viper.GetInt("CycleNumber") == t.completedCnt {
 		logrus.Info("Task completed", t.completedCnt)
 		time.Sleep(time.Second * 4)
 		panic("Task completed, exit")
@@ -256,21 +204,22 @@ func (t *Task) trade() {
 		return
 	}
 
-	if t.status == INIT {
+	if t.status == STOP {
+		return
+	}
+
+	if t.status == RUNNING {
 		// Check and Open
 		if !klinePauser.Value() && !timeoutPauser.Value() {
 			t.status = PROCESSOPEN
 			t.closeRatio, t.openStableCoinPrice, t.openBookTickerASymbolPrice, t.openBookTickerBSymbolPrice,
 				t.openID = t.open()
-			if t.status == FILLED {
-				t.Balance.BalanceUpdate()
-			}
 		}
 	} else {
 		if t.status == FILLED ||
-			(t.status == UNFILLED && !*t.isFOK) {
+			(t.status == UNFILLED && !viper.GetBool("FOK")) {
 			// Close
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*t.closeTimeOut)*time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("CloseTimeOut"))
 			defer cancel()
 
 			t.closeID = t.close(ctx)
@@ -326,8 +275,8 @@ func (t *Task) open() (decimal.Decimal, decimal.Decimal, decimal.Decimal, decima
 	case UNFILLED:
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 	}
-	if *t.onlyMode1 {
-		t.status = INIT
+	if viper.GetBool("OnlyMode1") {
+		t.status = RUNNING
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 	}
 
@@ -353,18 +302,19 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 
 	ratioMode1, ok := t.calculateRatioMode1(bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, stableCoinSymbolBidPrice)
 	if !ok {
-		t.status = INIT
+		t.status = RUNNING
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 	}
 
-	if ratioMode1.GreaterThanOrEqual(t.minRatio) && ratioMode1.LessThanOrEqual(t.maxRatio) {
+	if ratioMode1.GreaterThanOrEqual(viper.Get("RatioMin").(decimal.Decimal)) &&
+		ratioMode1.LessThanOrEqual(viper.Get("RatioMax").(decimal.Decimal)) {
 		t.mode.Store(1)
 		logrus.Info("[Open[]", t.ratioLog(ratioMode1, stableCoinSymbolBidPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice))
-		price := bookTickerBSymbolAskPrice.Add(utils.StringToDecimal(*t.standardPriceIndex))
+		price := bookTickerBSymbolAskPrice.Add(viper.Get("FOKStandard").(decimal.Decimal))
 		if id, ok := t.tradeMode1(
 			true,
 			price,
-			*t.maxQty,
+			viper.GetString("MaxQty"),
 		); ok {
 			t.status = FILLED
 			return ratioMode1, t.stableCoinSymbolAskPrice, bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, id
@@ -374,7 +324,7 @@ func (t *Task) openMode1() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 		}
 	}
 
-	t.status = INIT
+	t.status = RUNNING
 	return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 }
 
@@ -388,18 +338,19 @@ func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 
 	ratioMode2, ok := t.calculateRatioMode2(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, stableCoinSymbolAskPrice)
 	if !ok {
-		t.status = INIT
+		t.status = RUNNING
 		return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 	}
 
-	if ratioMode2.GreaterThanOrEqual(t.minRatio) && ratioMode2.LessThanOrEqual(t.maxRatio) {
+	if ratioMode2.GreaterThanOrEqual(viper.Get("RatioMin").(decimal.Decimal)) &&
+		ratioMode2.LessThanOrEqual(viper.Get("RatioMax").(decimal.Decimal)) {
 		t.mode.Store(2)
 		logrus.Info("[Open[]", t.ratioLog(ratioMode2, stableCoinSymbolAskPrice, bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice))
-		price := bookTickerBSymbolBidPrice.Sub(utils.StringToDecimal(*t.standardPriceIndex))
+		price := bookTickerBSymbolBidPrice.Sub(viper.Get("FOKStandard").(decimal.Decimal))
 		if id, ok := t.tradeMode2(
 			true,
 			price,
-			*t.maxQty,
+			viper.GetString("MaxQty"),
 		); ok {
 
 			t.status = FILLED
@@ -410,7 +361,7 @@ func (t *Task) openMode2() (decimal.Decimal, decimal.Decimal, decimal.Decimal, d
 		}
 	}
 
-	t.status = INIT
+	t.status = RUNNING
 	return decimal.Zero, decimal.Zero, decimal.Zero, decimal.Zero, ""
 }
 
@@ -430,7 +381,7 @@ func (t *Task) close(
 					if id, ok := t.tradeMode2(
 						false,
 						t.bookTickerBSymbolBidPrice,
-						*t.maxQty,
+						viper.GetString("MaxQty"),
 					); ok {
 
 						logrus.Infof("Mode1 loss after open, force close. Open price: %s, ask: %s, amount of loss: %s",
@@ -449,7 +400,7 @@ func (t *Task) close(
 					bookTickerBSymbolBidPrice = t.bookTickerBSymbolBidPrice
 					openStableCoinPrice       = t.openStableCoinPrice
 				)
-				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(t.profitRatio)
+				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(viper.Get("RatioProfit").(decimal.Decimal))
 				ratioMode2, ok := t.calculateRatioMode2(bookTickerASymbolAskPrice, bookTickerBSymbolBidPrice, openStableCoinPrice)
 				if !ok {
 					continue
@@ -463,7 +414,7 @@ func (t *Task) close(
 					if id, ok := t.tradeMode2(
 						false,
 						bookTickerBSymbolBidPrice,
-						*t.maxQty,
+						viper.GetString("MaxQty"),
 					); ok {
 						return id
 					}
@@ -473,7 +424,7 @@ func (t *Task) close(
 					if id, ok := t.tradeMode1(
 						false,
 						t.bookTickerBSymbolAskPrice,
-						*t.maxQty,
+						viper.GetString("MaxQty"),
 					); ok {
 						logrus.Infof("Mode2 loss after open, force close. Open price: %s, bid: %s, amount of loss: %s",
 							t.openBookTickerBSymbolPrice.String(),
@@ -492,7 +443,7 @@ func (t *Task) close(
 					openStableCoinPrice       = t.openStableCoinPrice
 				)
 
-				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(t.profitRatio)
+				ratio := decimal.NewFromFloat(-0.0001).Sub(t.closeRatio).Mul(viper.Get("RatioProfit").(decimal.Decimal))
 				ratioMode1, ok := t.calculateRatioMode1(bookTickerASymbolBidPrice, bookTickerBSymbolAskPrice, openStableCoinPrice)
 				if !ok {
 					continue
@@ -506,7 +457,7 @@ func (t *Task) close(
 					if id, ok := t.tradeMode1(
 						false,
 						bookTickerBSymbolAskPrice,
-						*t.maxQty,
+						viper.GetString("MaxQty"),
 					); ok {
 						return id
 					}
@@ -539,7 +490,7 @@ func (t *Task) foreceClose() (orderID string) {
 		if id, ok := t.tradeMode2(
 			false,
 			bookTickerBSymbolBidPrice,
-			*t.maxQty,
+			viper.GetString("MaxQty"),
 		); ok {
 			return id
 		}
@@ -563,7 +514,7 @@ func (t *Task) foreceClose() (orderID string) {
 		if id, ok := t.tradeMode1(
 			false,
 			bookTickerBSymbolAskPrice,
-			*t.maxQty,
+			viper.GetString("MaxQty"),
 		); ok {
 			return id
 		}
@@ -576,8 +527,8 @@ func (t *Task) tradeMode1(
 	price decimal.Decimal,
 	qty string,
 ) (string, bool) {
-	if isOpen && *t.isFOK {
-		if *t.isFuture {
+	if isOpen && viper.GetBool("FOK") {
+		if viper.GetBool("Future") {
 			return t.binanceFuturesFOKTrade(
 				t.bookTickerBSymbol,
 				futures.SideTypeBuy,
@@ -594,7 +545,7 @@ func (t *Task) tradeMode1(
 		}
 	}
 
-	if *t.isFuture {
+	if viper.GetBool("Future") {
 		return t.binanceFuturesTrade(
 			t.bookTickerBSymbol,
 			futures.SideTypeBuy,
@@ -614,8 +565,8 @@ func (t *Task) tradeMode2(
 	price decimal.Decimal,
 	qty string,
 ) (string, bool) {
-	if isOpen && *t.isFOK {
-		if *t.isFuture {
+	if isOpen && viper.GetBool("FOK") {
+		if viper.GetBool("Future") {
 			return t.binanceFuturesFOKTrade(
 				t.bookTickerBSymbol,
 				futures.SideTypeSell,
@@ -632,7 +583,7 @@ func (t *Task) tradeMode2(
 		}
 	}
 
-	if *t.isFuture {
+	if viper.GetBool("Future") {
 		return t.binanceFuturesTrade(
 			t.bookTickerBSymbol,
 			futures.SideTypeSell,
@@ -819,4 +770,40 @@ func (t *Task) binanceFuturesTrade(symbol string, side futures.SideType, qty str
 		return "", false
 	}
 	return fmt.Sprintln(res.OrderID), true
+}
+
+type TaskControl interface {
+	GetInfo() string
+	Stop()
+	Start()
+}
+
+func (t *Task) GetInfo() string {
+	return fmt.Sprintf(
+		"Status:%s|Progress:%d/%d|Gain:%s|Profit:%s|Deficit:%s|Mode1:%s|Mode2:%s\n",
+		t.status.String(),
+		t.completedCnt,
+		viper.GetInt64("CycleNumber"),
+		t.gain.String(),
+		t.profit.String(),
+		t.deficit.String(),
+		t.mode1Ratio.String(),
+		t.mode2Ratio.String(),
+	)
+}
+
+func (t *Task) Stop() {
+	go func() {
+		for {
+			if t.status == RUNNING {
+				t.status = STOP
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+}
+
+func (t *Task) Start() {
+	t.status = RUNNING
 }

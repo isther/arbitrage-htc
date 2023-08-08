@@ -3,7 +3,10 @@ run:
 	@go run main.go
 
 docker-run:
-	@docker-compose up -d --force-recreate --build cmd
+	@docker-compose up -d --force-recreate --remove-orphans --build cmd
+
+clear-images:
+	@docker image prune -a 
 
 clear: 
 	@rm logs/*

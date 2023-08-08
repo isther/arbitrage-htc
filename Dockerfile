@@ -16,6 +16,7 @@ RUN go build -o cmd main.go
 FROM scratch as runner
 
 COPY --from=builder /build/cmd /
+COPY --from=builder /build/ttf /ttf
 # COPY --from=builder /build/config.yaml /
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 

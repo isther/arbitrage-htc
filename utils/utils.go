@@ -6,8 +6,8 @@ import (
 	binancesdk "github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/fogleman/gg"
-	"github.com/isther/arbitrage-htc/config"
 	"github.com/shopspring/decimal"
+	"github.com/spf13/viper"
 )
 
 func StringToDecimal(s string) decimal.Decimal {
@@ -19,11 +19,11 @@ func StringToDecimal(s string) decimal.Decimal {
 }
 
 func NewBinanceClient() *binancesdk.Client {
-	return binancesdk.NewClient(config.Config.Api, config.Config.Secret)
+	return binancesdk.NewClient(viper.GetString("Binance.Api"), viper.GetString("Binance.Secret"))
 }
 
 func NewBinanceFuturesClient() *futures.Client {
-	return futures.NewClient(config.Config.Api, config.Config.Secret)
+	return futures.NewClient(viper.GetString("Binance.Api"), viper.GetString("Binance.Secret"))
 }
 
 func CreatePNG(content, filePath string) {

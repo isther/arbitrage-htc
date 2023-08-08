@@ -6,17 +6,11 @@ type Account struct {
 	OrderList
 }
 
-func NewAccount(
-	isFuture *bool,
-	useBNB *bool,
-	bnbMinQty *float64,
-	autoBuyBNB *bool,
-	autoBuyBNBQty *float64, // U
-) *Account {
+func NewAccount() *Account {
 	return &Account{
-		ExchangeInfo: NewexchangeInfoer(isFuture),
-		Balance:      NewBALANCE(isFuture, useBNB, bnbMinQty, autoBuyBNB, autoBuyBNBQty),
-		OrderList:    NewORDER(isFuture),
+		ExchangeInfo: NewexchangeInfoer(),
+		Balance:      NewBALANCE(),
+		OrderList:    NewORDER(),
 	}
 }
 

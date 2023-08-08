@@ -10,6 +10,7 @@ import (
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -25,10 +26,6 @@ type ArbitrageManager struct {
 	StableCoinSymbol  string
 	BookTickerBSymbol string
 
-	maxKlineRatio      decimal.Decimal
-	minKlineRatio      decimal.Decimal
-	clientTimeOutLimit int64
-
 	updateEvents []BookTickerEventUpdater
 	lock         sync.RWMutex
 }
@@ -37,19 +34,13 @@ func NewArbitrageManager(
 	bookTickerASymbol,
 	stableCoinSymbol,
 	bookTickerBSymbol string,
-	maxKlineRatio,
-	minKlineRatio float64,
-	clientTimeOutLimit int64,
 ) *ArbitrageManager {
 	return &ArbitrageManager{
-		BookTickerASymbol:  bookTickerASymbol,
-		StableCoinSymbol:   stableCoinSymbol,
-		BookTickerBSymbol:  bookTickerBSymbol,
-		maxKlineRatio:      decimal.NewFromFloat(maxKlineRatio),
-		minKlineRatio:      decimal.NewFromFloat(minKlineRatio),
-		clientTimeOutLimit: clientTimeOutLimit,
-		updateEvents:       make([]BookTickerEventUpdater, 0),
-		lock:               sync.RWMutex{},
+		BookTickerASymbol: bookTickerASymbol,
+		StableCoinSymbol:  stableCoinSymbol,
+		BookTickerBSymbol: bookTickerBSymbol,
+		updateEvents:      make([]BookTickerEventUpdater, 0),
+		lock:              sync.RWMutex{},
 	}
 }
 
@@ -103,9 +94,9 @@ func (b *ArbitrageManager) startCheckBinanceKline() {
 
 		ratio := high.Div(low).Sub(decimal.NewFromInt(1)).Mul(klineRatioBase)
 
-		if ratio.GreaterThan(b.maxKlineRatio) {
+		if ratio.GreaterThan(viper.Get("PauseMaxKlineRatio").(decimal.Decimal)) {
 			klinePauser.Pause(fmt.Sprintf("[Pause[] %s: The amplitude of %s K-line to high.", ratio.String(), b.BookTickerBSymbol))
-		} else if ratio.LessThan(b.minKlineRatio) {
+		} else if ratio.LessThan(viper.Get("PauseMinKlineRatio").(decimal.Decimal)) {
 			klinePauser.Pause(fmt.Sprintf("[Pause[] %s: The amplitude of %s K-line to low.", ratio.String(), b.BookTickerBSymbol))
 		} else {
 			klinePauser.UnPause(fmt.Sprintf("[Unpause[] %s: The amplitude of %s K-line recovery.", ratio.String(), b.BookTickerBSymbol))
@@ -142,7 +133,7 @@ func (b *ArbitrageManager) ping() {
 
 		timeout := time.Now().UTC().UnixMilli() - serverTime
 
-		if timeout > b.clientTimeOutLimit {
+		if timeout > viper.GetInt64("PauseClientTimeOutLimit") {
 			timeoutPauser.Pause(fmt.Sprintf("[Pause[] %dms: Binance timeout", timeout))
 		} else {
 			timeoutPauser.UnPause(fmt.Sprintf("[Unpause[] %dms: Binance timeout recovery", timeout))

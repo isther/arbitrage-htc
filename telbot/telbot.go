@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/isther/arbitrage-htc/account"
-	"github.com/isther/arbitrage-htc/config"
 	"github.com/isther/arbitrage-htc/core"
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/mr-linch/go-tg"
 	"github.com/mr-linch/go-tg/tgb"
 	"github.com/mr-linch/go-tg/tgb/session"
+	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type TelBot struct {
@@ -32,10 +33,10 @@ type TelBot struct {
 	cancel context.CancelFunc
 
 	account.BalanceInfo
-	core.TaskInfo
+	core.TaskControl
 }
 
-func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.TaskInfo) *TelBot {
+func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.TaskControl) *TelBot {
 	var ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
 	return &TelBot{
 		Client:      tg.New(token),
@@ -45,7 +46,7 @@ func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.
 		ctx:         ctx,
 		cancel:      cancel,
 		BalanceInfo: balanceInfo,
-		TaskInfo:    taskInfoView,
+		TaskControl: taskInfoView,
 	}
 }
 
@@ -54,8 +55,7 @@ func (t *TelBot) Run() {
 
 	name, err := t.Client.GetMyName().Do(t.ctx)
 	if err != nil {
-		logrus.Error("Failed to get name: ", err)
-		return
+		panic("Failed to get name: " + err.Error())
 	}
 	logrus.Infof("%s login successfully!", name.Name)
 
@@ -68,13 +68,15 @@ func (t *TelBot) Run() {
 			{Command: "log_disable", Description: "Disable log"},
 			{Command: "account", Description: "Get account info"},
 			{Command: "task", Description: "Get task info"},
+			{Command: "tstart", Description: "Run task"},
+			{Command: "tstop", Description: "Stop task"},
 			{Command: "settings", Description: "Setting"},
 		}).DoVoid(t.ctx)
 
 	t.
 		AddStartHandler().
 		AddEnableLogHandler().AddDisableLogHandler().
-		AddAccountHandler().AddTaskHandler().
+		AddAccountHandler().AddTaskControlHandler().
 		AddSettingHandler()
 
 	if err := tgb.NewPoller(
@@ -137,7 +139,7 @@ func (t *TelBot) AddAccountHandler() *TelBot {
 
 			var (
 				content  string
-				balances = t.BalanceInfo.BalanceInfo()
+				balances = t.BalanceInfo.GetBalanceInfo()
 			)
 
 			for k, v := range balances {
@@ -162,16 +164,28 @@ func (t *TelBot) AddAccountHandler() *TelBot {
 	return t
 }
 
-func (t *TelBot) AddTaskHandler() *TelBot {
-	t.Router.Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
+func (t *TelBot) AddTaskControlHandler() *TelBot {
+	t.Router.Message(
+		func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			t.TaskControl.Start()
+			return msg.Answer("Task start!").DoVoid(ctx)
+		},
+		tgb.Command("tstart"),
+	).Message(
+		func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			t.TaskControl.Stop()
+			return msg.Answer("Task stop!").DoVoid(ctx)
+		},
+		tgb.Command("tstop"),
+	).Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 		if err := msg.Update.Reply(ctx, msg.AnswerChatAction(tg.ChatActionUploadPhoto)); err != nil {
 			logrus.Errorf("answer chat action: %v", err)
 			return fmt.Errorf("answer chat action: %w", err)
 		}
 
 		var (
-			content string
-			info    = t.TaskInfo.TaskInfo()
+			content string = "Task: \n"
+			info           = t.TaskControl.GetInfo()
 		)
 		for _, line := range strings.Split(info, "|") {
 			for k, word := range strings.Split(line, ":") {
@@ -183,6 +197,35 @@ func (t *TelBot) AddTaskHandler() *TelBot {
 				}
 			}
 		}
+
+		addStringSetting := func(key string) {
+			content += fmt.Sprintf("%s:%s\n", key, viper.GetString(key))
+		}
+
+		addTimeSetting := func(key string) {
+			content += fmt.Sprintf("%s:%dms\n", key, viper.GetDuration(key).Milliseconds())
+		}
+
+		addStringSetting("RatioMin")
+		addStringSetting("RatioMax")
+		addStringSetting("RatioProfit")
+		addTimeSetting("CloseTimeout")
+		addTimeSetting("WaitDuration")
+		addStringSetting("MaxQty")
+		content += "Mode: \n"
+		addStringSetting("FOK")
+		addStringSetting("FOKStandard")
+		addStringSetting("Future")
+		addStringSetting("OnlyFuture")
+		content += "Fee: \n"
+		addStringSetting("UseBNB")
+		addStringSetting("BNBMinQty")
+		addStringSetting("AutoBuyBNB")
+		addStringSetting("AutoBuyBNBQty")
+		content += "Pause: \n"
+		addStringSetting("PauseMinKlineRatio")
+		addStringSetting("PauseMaxKlineRatio")
+		addStringSetting("PauseClientTimeOutLimit")
 
 		imgFilePath := filepath.Join("./imgs", fmt.Sprintf("task-%d-%d", msg.ID, time.Now().UTC().UnixMilli()))
 		utils.CreatePNG(content, imgFilePath)
@@ -216,14 +259,20 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 	type SettingType int8
 	const (
-		QtySetting SettingType = iota
+		CycleNumberSetting SettingType = iota
+		QtySetting
+		RatioMinSetting
+		RatioMaxSetting
+		RatioProfitSetting
+		CloseTimeoutSetting
+		WaitDurationSetting
 		FOKSetting
 		FutureSetting
 		OnlyMode1Setting
-		CycleNumberSetting
-		WaitDurationSetting
-		CloseTimeoutSetting
-		StandardPriceIndexSetting
+		FOKStandardSetting
+		PauseMaxKlineRatioSetting
+		PauseMinKlineRatioSetting
+		PauseClientTimeOutLimitSetting
 		Quit
 	)
 
@@ -235,34 +284,44 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 	var (
 		settingsMap = map[string]SettingType{
-			"Qty":                QtySetting,
-			"isFOK":              FOKSetting,
-			"isFuture":           FutureSetting,
-			"OnlyMode1":          OnlyMode1Setting,
-			"CycleNumber":        CycleNumberSetting,
-			"WaitDuration":       WaitDurationSetting,
-			"CloseTimeout":       CloseTimeoutSetting,
-			"StandardPriceIndex": StandardPriceIndexSetting,
-			"Quit":               Quit,
+			"CycleNumber":             CycleNumberSetting,
+			"Qty":                     QtySetting,
+			"RatioMin":                RatioMinSetting,
+			"RatioMax":                RatioMaxSetting,
+			"RatioProfit":             RatioProfitSetting,
+			"CloseTimeout":            CloseTimeoutSetting,
+			"WaitDuration":            WaitDurationSetting,
+			"FOK":                     FOKSetting,
+			"FOKStandard":             FOKStandardSetting,
+			"Future":                  FutureSetting,
+			"OnlyMode1":               OnlyMode1Setting,
+			"PauseMinKlineRatio":      PauseMinKlineRatioSetting,
+			"PauseMaxKlineRatio":      PauseMaxKlineRatioSetting,
+			"PauseClientTimeOutLimit": PauseClientTimeOutLimitSetting,
+			"Quit":                    Quit,
 		}
 
 		settings = []string{
-			"Qty",
-			"isFOK",
-			"isFuture",
-			"OnlyMode1",
-			"CycleNumber",
-			"WaitDuration",
-			"CloseTimeout",
-			"StandardPriceIndex",
 			"Quit",
+			"CycleNumber",
+			"Qty",
+			"RatioMin",
+			"RatioMax",
+			"RatioProfit",
+			"CloseTimeout",
+			"WaitDuration",
+			"FOKStandard",
+			"Future",
+			"OnlyMode1",
+			"FOK",
+			"PauseMinKlineRatio",
+			"PauseMaxKlineRatio",
+			"PauseClientTimeOutLimit",
 		}
 
 		sessionManager = session.NewManager(Session{
 			Step: SessionStepInit,
-		}, session.WithStore(
-			session.NewStoreFile("sessions"),
-		))
+		})
 
 		isSessionStep = func(state SessionStep) tgb.Filter {
 			return sessionManager.Filter(func(session *Session) bool {
@@ -271,7 +330,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		}
 
 		isDigit = tgb.Regexp(regexp.MustCompile(`^\d+$`))
-		// isFloat = tgb.Regexp(regexp.MustCompile(`^(-?\d+)(\.\d+)?$`))
+		isFloat = tgb.Regexp(regexp.MustCompile(`^(-?\d+)(\.\d+)?$`))
 	)
 
 	t.Router.
@@ -281,11 +340,36 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				session := sessionManager.Get(ctx)
 				session.Step = SessionSelectSetting
 
-				buttonLayout := tg.NewButtonLayout[tg.KeyboardButton](3)
+				buttonLayout := tg.NewButtonLayout[tg.KeyboardButton](4)
+				buttonLayout.Row(
+					tg.NewKeyboardButton("Quit"),
+					tg.NewKeyboardButton("CycleNumber"),
+					tg.NewKeyboardButton("Qty"),
+				)
 
-				for _, key := range settings {
-					buttonLayout.Insert(tg.NewKeyboardButton(key))
-				}
+				buttonLayout.Row(
+					tg.NewKeyboardButton("RatioMin"),
+					tg.NewKeyboardButton("RatioMax"),
+					tg.NewKeyboardButton("RatioProfit"),
+				)
+
+				buttonLayout.Row(
+					tg.NewKeyboardButton("CloseTimeout"),
+					tg.NewKeyboardButton("WaitDuration"),
+				)
+
+				buttonLayout.Row(
+					tg.NewKeyboardButton("FOK"),
+					tg.NewKeyboardButton("Future"),
+					tg.NewKeyboardButton("OnlyMode1"),
+					tg.NewKeyboardButton("FOKStandard"),
+				)
+
+				buttonLayout.Row(
+					tg.NewKeyboardButton("PauseMinKlineRatio"),
+					tg.NewKeyboardButton("PauseMaxKlineRatio"),
+					tg.NewKeyboardButton("PauseClientTimeOutLimit"),
+				)
 
 				return msg.Update.Reply(ctx, msg.Answer("Please input key: ").ReplyMarkup(
 					tg.NewReplyKeyboardMarkup(
@@ -310,12 +394,14 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			}
 
 			switch value {
-			case QtySetting, StandardPriceIndexSetting:
+			case QtySetting:
 				session.Step = SessionStringInputting
 			case FOKSetting, FutureSetting, OnlyMode1Setting:
 				session.Step = SessionBoolInputting
-			case CycleNumberSetting, WaitDurationSetting, CloseTimeoutSetting:
+			case CycleNumberSetting, WaitDurationSetting, CloseTimeoutSetting, PauseClientTimeOutLimitSetting:
 				session.Step = SessionIntInputting
+			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting:
+				session.Step = SessionFloatInputting
 			}
 
 			session.SettingType = value
@@ -328,6 +414,21 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			return msg.Update.Reply(ctx, msg.Answer("Please, choose one of the buttons below 👇"))
 		}, isSessionStep(SessionSelectSetting), tgb.Not(tgb.TextIn(settings))).
+		// Input setting value type of string
+		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			session := sessionManager.Get(ctx)
+
+			switch session.SettingType {
+			case QtySetting:
+				viper.Set("MaxQty", msg.Text)
+			}
+
+			sessionManager.Reset(session)
+			return msg.Update.Reply(ctx, msg.Answer("Setting was saved"))
+		}, isSessionStep(SessionStringInputting)).
+		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			return msg.Update.Reply(ctx, msg.Answer("Please, send me just float value"))
+		}, isSessionStep(SessionStringInputting), tgb.Not(isFloat)).
 		// Input setting value type of int
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			session := sessionManager.Get(ctx)
@@ -339,11 +440,13 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 			switch session.SettingType {
 			case CycleNumberSetting:
-				config.Config.CycleNumber = int(value)
+				viper.Set("CycleNumber", int(value))
 			case WaitDurationSetting:
-				config.Config.WaitDuration = value
+				viper.Set("WaitDuration", time.Duration(value)*time.Millisecond)
 			case CloseTimeoutSetting:
-				config.Config.CloseTimeOut = value
+				viper.Set("CloseTimeOut", time.Duration(value)*time.Millisecond)
+			case PauseClientTimeOutLimitSetting:
+				viper.Set("PauseClientTimeOutLimit", value)
 			}
 
 			sessionManager.Reset(session)
@@ -363,11 +466,11 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 			switch session.SettingType {
 			case FOKSetting:
-				config.Config.IsFOK = value
+				viper.Set("FOK", value)
 			case FutureSetting:
-				config.Config.IsFuture = value
+				viper.Set("Future", value)
 			case OnlyMode1Setting:
-				config.Config.OnlyMode1 = value
+				viper.Set("OnlyMode1", value)
 			}
 
 			sessionManager.Reset(session)
@@ -376,20 +479,36 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			return msg.Update.Reply(ctx, msg.Answer("Please, send me just boolean value"))
 		}, isSessionStep(SessionBoolInputting), tgb.Not(tgb.TextIn([]string{"true", "false"}))).
-		// Input setting value type of bool
+		// Input setting value type of float
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			session := sessionManager.Get(ctx)
+			value, err := strconv.ParseFloat(msg.Text, 64)
+			if err != nil {
+				logrus.Error(err)
+				return fmt.Errorf("parse value: %w", err)
+			}
 
 			switch session.SettingType {
-			case QtySetting:
-				config.Config.MaxQty = msg.Text
-			case StandardPriceIndexSetting:
-				config.Config.StandardPriceIndex = msg.Text
+			case RatioMinSetting:
+				viper.Set("RatioMin", decimal.NewFromFloat(value))
+			case RatioMaxSetting:
+				viper.Set("RatioMax", decimal.NewFromFloat(value))
+			case RatioProfitSetting:
+				viper.Set("RatioProfit", decimal.NewFromFloat(value))
+			case FOKStandardSetting:
+				viper.Set("FOKStandard", decimal.NewFromFloat(value))
+			case PauseMinKlineRatioSetting:
+				viper.Set("PauseMinKlineRatio", decimal.NewFromFloat(value))
+			case PauseMaxKlineRatioSetting:
+				viper.Set("PauseMaxKlineRatio", decimal.NewFromFloat(value))
 			}
 
 			sessionManager.Reset(session)
 			return msg.Update.Reply(ctx, msg.Answer("Setting was saved"))
-		}, isSessionStep(SessionStringInputting))
+		}, isSessionStep(SessionFloatInputting), isFloat).
+		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			return msg.Update.Reply(ctx, msg.Answer("Please, send me just float value"))
+		}, isSessionStep(SessionFloatInputting), tgb.Not(isFloat))
 
 	return t
 }

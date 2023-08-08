@@ -11,6 +11,7 @@ import (
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type Balance interface {
@@ -25,10 +26,10 @@ type BalanceView interface {
 }
 
 type BalanceInfo interface {
-	BalanceInfo() map[string]string
+	GetBalanceInfo() map[string]string
 }
 
-func (b *BALANCE) BalanceInfo() map[string]string {
+func (b *BALANCE) GetBalanceInfo() map[string]string {
 	b.L.Lock()
 	defer b.L.Unlock()
 
@@ -36,12 +37,6 @@ func (b *BALANCE) BalanceInfo() map[string]string {
 }
 
 type BALANCE struct {
-	isFuture      *bool
-	useBNB        *bool
-	bnbMinQty     *float64
-	autoBuyBNB    *bool
-	autoBuyBNBQty *float64 // U
-
 	balances        map[string]string
 	updateBalanceCh chan struct{}
 
@@ -50,20 +45,8 @@ type BALANCE struct {
 	L sync.RWMutex
 }
 
-func NewBALANCE(
-	isFuture *bool,
-	useBNB *bool,
-	bnbMinQty *float64,
-	autoBuyBNB *bool,
-	autoBuyBNBQty *float64, // U
-) *BALANCE {
+func NewBALANCE() *BALANCE {
 	return &BALANCE{
-		isFuture:      isFuture,
-		useBNB:        useBNB,
-		bnbMinQty:     bnbMinQty,
-		autoBuyBNB:    autoBuyBNB,
-		autoBuyBNBQty: autoBuyBNBQty,
-
 		balances:        make(map[string]string),
 		updateBalanceCh: make(chan struct{}),
 		balanceViews:    make([]BalanceView, 0),
@@ -99,7 +82,7 @@ func (b *BALANCE) updateBinanceBalance() {
 	b.L.Lock()
 	defer b.L.Unlock()
 
-	if *b.isFuture {
+	if viper.GetBool("Future") {
 		b.updateBinanceFuturesBalance(false, "USDT", "BTC", "BNB")
 	} else {
 		b.updateBinanceSpotBalance(false, "USDT", "BTC", "BNB")
@@ -118,11 +101,11 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 	}
 
 	for _, v := range res.Balances {
-		if *b.useBNB && v.Asset == "BNB" {
+		if viper.GetBool("UseBNB") && v.Asset == "BNB" {
 			free := utils.StringToDecimal(v.Free)
-			if free.LessThan(decimal.NewFromFloat(*b.bnbMinQty)) {
-				if !next && *b.autoBuyBNB {
-					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, decimal.NewFromFloat(*b.autoBuyBNBQty))
+			if free.LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
+				if !next && viper.GetBool("AutoBuyBNB") {
+					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, viper.Get("AutoBuyBNBQty").(decimal.Decimal))
 					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
 					b.updateBinanceSpotBalance(true, assets...)
 					return
@@ -151,12 +134,12 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 	}
 
 	for _, v := range res.Assets {
-		if *b.autoBuyBNB && v.Asset == "BNB" {
+		if viper.GetBool("AutoBuyBNB") && v.Asset == "BNB" {
 			free := utils.StringToDecimal(v.WalletBalance)
-			if free.LessThan(decimal.NewFromFloat(*b.bnbMinQty)) {
-				if !next && *b.autoBuyBNB {
+			if free.LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
+				if !next && viper.GetBool("AutoBuyBNB") {
 					// buy
-					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, decimal.NewFromFloat(*b.autoBuyBNBQty))
+					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, viper.Get("AutoBuyBNBQty").(decimal.Decimal))
 					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
 
 					// BUG: transfer to futures

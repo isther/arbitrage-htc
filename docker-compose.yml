@@ -6,8 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     # restart: always
+    env_file: .env
     volumes:
-      - ./config.yaml:/config.yaml
+      - ./config:/config
       - ./logs:/logs
       - ./imgs:/imgs
-      - ./ttf:/ttf

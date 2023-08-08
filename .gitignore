@@ -1,6 +1,5 @@
 /logs/*
 /imgs/*
-/cvm
-/sessions
-config.yaml
+.env
+.config.json
 .DS_Store

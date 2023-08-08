@@ -12,6 +12,7 @@ import (
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type OrderList interface {
@@ -20,8 +21,6 @@ type OrderList interface {
 }
 
 type ORDER struct {
-	isFuture *bool
-
 	binanceOrders   map[string]OrderInfo
 	binanceOrdersCh chan OrderInfo
 
@@ -40,9 +39,8 @@ type OrderInfo struct {
 	Qty   decimal.Decimal
 }
 
-func NewORDER(isFuture *bool) *ORDER {
+func NewORDER() *ORDER {
 	return &ORDER{
-		isFuture:        isFuture,
 		binanceOrders:   make(map[string]OrderInfo),
 		binanceOrdersCh: make(chan OrderInfo),
 		L:               sync.RWMutex{},
@@ -59,7 +57,7 @@ func (o *ORDER) Run() {
 		}
 	}()
 
-	if *o.isFuture {
+	if viper.GetBool("Future") {
 		o.startBinanceFuturesAccountServer()
 	} else {
 		o.startBinanceAccountServer()

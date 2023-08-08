@@ -11,6 +11,7 @@ import (
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type ExchangeInfo interface {
@@ -20,15 +21,13 @@ type ExchangeInfo interface {
 }
 
 type exchangeInfo struct {
-	isFuture       bool
 	spotSymbols    map[string]binancesdk.Symbol
 	futuresSymbols map[string]futures.Symbol
 	lock           sync.RWMutex
 }
 
-func NewexchangeInfoer(isFuture *bool) *exchangeInfo {
+func NewexchangeInfoer() *exchangeInfo {
 	return &exchangeInfo{
-		isFuture:       *isFuture,
 		spotSymbols:    make(map[string]binancesdk.Symbol),
 		futuresSymbols: make(map[string]futures.Symbol),
 		lock:           sync.RWMutex{},
@@ -36,8 +35,8 @@ func NewexchangeInfoer(isFuture *bool) *exchangeInfo {
 }
 
 func (e *exchangeInfo) Run() {
-	if e.isFuture {
-
+	// TODO:Add updateFuturesExchangeInfo
+	if viper.GetBool("Future") {
 		return
 	}
 
@@ -84,7 +83,7 @@ func (e *exchangeInfo) updateFuturesExchangeInfo() error {
 }
 
 func (e *exchangeInfo) CorrectionPrice(symbol string, price decimal.Decimal) decimal.Decimal {
-	if e.isFuture {
+	if viper.GetBool("Future") {
 		symbol_, ok := e.futuresSymbols[symbol]
 		if ok {
 			if symbol_.Symbol == symbol {
@@ -106,7 +105,7 @@ func (e *exchangeInfo) CorrectionPrice(symbol string, price decimal.Decimal) dec
 }
 
 func (e *exchangeInfo) CorrectionQty(symbol string, qty decimal.Decimal) decimal.Decimal {
-	if e.isFuture {
+	if viper.GetBool("Future") {
 		symbol_, ok := e.futuresSymbols[symbol]
 		if ok {
 			if symbol_.Symbol == symbol {
