@@ -198,34 +198,34 @@ func (t *TelBot) AddTaskControlHandler() *TelBot {
 			}
 		}
 
-		addStringSetting := func(key string) {
-			content += fmt.Sprintf("%s:%s\n", key, viper.GetString(key))
+		addStringSetting := func(key string, unit string) {
+			content += fmt.Sprintf("%s:%s%s\n", key, viper.GetString(key), unit)
 		}
 
 		addTimeSetting := func(key string) {
 			content += fmt.Sprintf("%s:%dms\n", key, viper.GetDuration(key).Milliseconds())
 		}
 
-		addStringSetting("RatioMin")
-		addStringSetting("RatioMax")
-		addStringSetting("RatioProfit")
+		addStringSetting("RatioMin", "")
+		addStringSetting("RatioMax", "")
+		addStringSetting("RatioProfit", "")
 		addTimeSetting("CloseTimeout")
 		addTimeSetting("WaitDuration")
-		addStringSetting("MaxQty")
-		content += "Mode: \n"
-		addStringSetting("FOK")
-		addStringSetting("FOKStandard")
-		addStringSetting("Future")
-		addStringSetting("OnlyFuture")
-		content += "Fee: \n"
-		addStringSetting("UseBNB")
-		addStringSetting("BNBMinQty")
-		addStringSetting("AutoBuyBNB")
-		addStringSetting("AutoBuyBNBQty")
-		content += "Pause: \n"
-		addStringSetting("PauseMinKlineRatio")
-		addStringSetting("PauseMaxKlineRatio")
-		addStringSetting("PauseClientTimeOutLimit")
+		addStringSetting("MaxQty", "")
+		content += "Mode: \n\n"
+		addStringSetting("FOK", "")
+		addStringSetting("FOKStandard", "")
+		addStringSetting("Future", "")
+		addStringSetting("OnlyFuture", "")
+		content += "Fee: \n\n"
+		addStringSetting("UseBNB", "")
+		addStringSetting("BNBMinQty", "")
+		addStringSetting("AutoBuyBNB", "")
+		addStringSetting("AutoBuyBNBQty", "")
+		content += "Pause: \n\n"
+		addStringSetting("PauseMinKlineRatio", "")
+		addStringSetting("PauseMaxKlineRatio", "")
+		addStringSetting("PauseClientTimeOutLimit", "ms")
 
 		imgFilePath := filepath.Join("./imgs", fmt.Sprintf("task-%d-%d", msg.ID, time.Now().UTC().UnixMilli()))
 		utils.CreatePNG(content, imgFilePath)

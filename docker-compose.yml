@@ -8,6 +8,6 @@ services:
     # restart: always
     env_file: .env
     volumes:
-      - ./config:/config
+      - .config.json:/.config.json
       - ./logs:/logs
       - ./imgs:/imgs
