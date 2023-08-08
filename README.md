@@ -30,3 +30,15 @@ sudo make docker-run
 在TG中使用机器人修改参数
 
 5. Start task
+
+## TG机器人指令
+
+```
+/tstart 启动task
+/tstop 停止task
+/settings 参数设置
+/account 账户余额
+/task 任务信息
+/log_enable 开启日志
+/log_disable 关闭日志
+```
