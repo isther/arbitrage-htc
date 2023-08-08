@@ -780,7 +780,7 @@ type TaskControl interface {
 
 func (t *Task) GetInfo() string {
 	return fmt.Sprintf(
-		"Status:%s|Progress:%d/%d|Gain:%s|Profit:%s|Deficit:%s|Mode1:%s|Mode2:%s\n",
+		"Status:%s|Progress:%d/%d|Gain:%s|Profit:%s|Deficit:%s|Mode1:%s|Mode2:%s",
 		t.status.String(),
 		t.completedCnt,
 		viper.GetInt64("CycleNumber"),
