@@ -9,7 +9,6 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.13.0
-	gopkg.in/fsnotify.v1 v1.4.7
 )
 
 require (

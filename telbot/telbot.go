@@ -421,6 +421,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch session.SettingType {
 			case QtySetting:
 				viper.Set("MaxQty", msg.Text)
+				t.TaskControl.MaxQty()
 			}
 
 			sessionManager.Reset(session)
@@ -441,10 +442,13 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch session.SettingType {
 			case CycleNumberSetting:
 				viper.Set("CycleNumber", int(value))
+				t.TaskControl.CycleNumber()
 			case WaitDurationSetting:
 				viper.Set("WaitDuration", time.Duration(value)*time.Millisecond)
+				t.TaskControl.WaitDuration()
 			case CloseTimeoutSetting:
 				viper.Set("CloseTimeOut", time.Duration(value)*time.Millisecond)
+				t.TaskControl.CloseTimeOut()
 			case PauseClientTimeOutLimitSetting:
 				viper.Set("PauseClientTimeOutLimit", value)
 			}
@@ -467,10 +471,13 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch session.SettingType {
 			case FOKSetting:
 				viper.Set("FOK", value)
+				t.TaskControl.FOK()
 			case FutureSetting:
 				viper.Set("Future", value)
+				t.TaskControl.Future()
 			case OnlyMode1Setting:
 				viper.Set("OnlyMode1", value)
+				t.TaskControl.OnlyMode1()
 			}
 
 			sessionManager.Reset(session)
@@ -491,12 +498,16 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch session.SettingType {
 			case RatioMinSetting:
 				viper.Set("RatioMin", decimal.NewFromFloat(value))
+				t.TaskControl.RatioMin()
 			case RatioMaxSetting:
 				viper.Set("RatioMax", decimal.NewFromFloat(value))
+				t.TaskControl.RatioMax()
 			case RatioProfitSetting:
 				viper.Set("RatioProfit", decimal.NewFromFloat(value))
+				t.TaskControl.RatioProfit()
 			case FOKStandardSetting:
 				viper.Set("FOKStandard", decimal.NewFromFloat(value))
+				t.TaskControl.FOKStandard()
 			case PauseMinKlineRatioSetting:
 				viper.Set("PauseMinKlineRatio", decimal.NewFromFloat(value))
 			case PauseMaxKlineRatioSetting:
