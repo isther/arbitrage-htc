@@ -216,8 +216,8 @@ func (t *Task) completeTask() {
 	t.Balance.BalanceUpdate()
 	if t.cycleNumber == t.completedCnt {
 		logrus.Info("Task completed", t.completedCnt)
-		time.Sleep(time.Second * 4)
-		panic("Task completed, exit")
+		t.status = STOP
+		logrus.Info("Task completed, stop")
 	}
 }
 
@@ -841,6 +841,9 @@ func (t *Task) Stop() {
 }
 
 func (t *Task) Start() {
+	if t.completedCnt >= t.cycleNumber {
+		t.completedCnt = 0
+	}
 	t.status = RUNNING
 }
 
