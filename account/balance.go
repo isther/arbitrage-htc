@@ -126,22 +126,22 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 				b.balances[asset] = v.Free
 			}
 		}
+	}
 
-		var (
-			usdt = utils.StringToDecimal(b.balances["USDT"])
-			btc  = utils.StringToDecimal(b.balances["BTC"])
-		)
-		res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
-		if err != nil {
-			logrus.Error(err)
-			return
-		}
-		for _, v := range res {
-			if v.Symbol == "BTCUSDT" {
-				price := utils.StringToDecimal(v.Price)
-				if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
-					b.canBuy = false
-				}
+	var (
+		usdt = utils.StringToDecimal(b.balances["USDT"])
+		btc  = utils.StringToDecimal(b.balances["BTC"])
+	)
+	priceRes, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	for _, v := range priceRes {
+		if v.Symbol == "BTCUSDT" {
+			price := utils.StringToDecimal(v.Price)
+			if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+				b.canBuy = false
 			}
 		}
 	}
@@ -181,22 +181,22 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 				b.balances[asset] = v.WalletBalance
 			}
 		}
+	}
 
-		var (
-			usdt = utils.StringToDecimal(b.balances["USDT"])
-			btc  = utils.StringToDecimal(b.balances["BTC"])
-		)
-		res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
-		if err != nil {
-			logrus.Error(err)
-			return
-		}
-		for _, v := range res {
-			if v.Symbol == "BTCUSDT" {
-				price := utils.StringToDecimal(v.Price)
-				if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
-					b.canBuy = false
-				}
+	var (
+		usdt = utils.StringToDecimal(b.balances["USDT"])
+		btc  = utils.StringToDecimal(b.balances["BTC"])
+	)
+	priceRes, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	for _, v := range priceRes {
+		if v.Symbol == "BTCUSDT" {
+			price := utils.StringToDecimal(v.Price)
+			if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+				b.canBuy = false
 			}
 		}
 	}
