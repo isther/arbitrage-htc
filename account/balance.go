@@ -117,7 +117,7 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 					for _, v := range res {
 						if v.Symbol == "BTCUSDT" {
 							price := utils.StringToDecimal(v.Price)
-							if usdt.Sub(btc.Mul(price)).GreaterThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+							if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
 								logrus.Error("BNB and USDT not sufficient --- Program stop")
 								time.Sleep(time.Second * 1)
 								panic("BNB and USDT not sufficient --- Program stop")
@@ -166,7 +166,7 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 					for _, v := range res {
 						if v.Symbol == "BTCUSDT" {
 							price := utils.StringToDecimal(v.Price)
-							if usdt.Sub(btc.Mul(price)).GreaterThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+							if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
 								logrus.Error("BNB and USDT not sufficient --- Program stop")
 								time.Sleep(time.Second * 1)
 								panic("BNB and USDT not sufficient --- Program stop")
