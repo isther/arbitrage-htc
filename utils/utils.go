@@ -18,12 +18,22 @@ func StringToDecimal(s string) decimal.Decimal {
 	return d
 }
 
+var (
+	apiKey  string
+	secrect string
+)
+
+func InitBinanceClientApi() {
+	apiKey = viper.GetString("Binance.Api")
+	secrect = viper.GetString("Binance.Secret")
+}
+
 func NewBinanceClient() *binancesdk.Client {
-	return binancesdk.NewClient(viper.GetString("Binance.Api"), viper.GetString("Binance.Secret"))
+	return binancesdk.NewClient(apiKey, secrect)
 }
 
 func NewBinanceFuturesClient() *futures.Client {
-	return futures.NewClient(viper.GetString("Binance.Api"), viper.GetString("Binance.Secret"))
+	return futures.NewClient(apiKey, secrect)
 }
 
 func CreatePNG(content, filePath string) {

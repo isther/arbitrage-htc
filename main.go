@@ -13,6 +13,7 @@ import (
 	"github.com/isther/arbitrage-htc/account"
 	"github.com/isther/arbitrage-htc/core"
 	"github.com/isther/arbitrage-htc/telbot"
+	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -74,6 +75,8 @@ func init() {
 	updateValue("PauseMinKlineRatio")
 	updateValue("PauseMaxKlineRatio")
 	updateValue("FOKStandard")
+
+	utils.InitBinanceClientApi()
 
 	file, err := os.OpenFile(
 		fmt.Sprintf(

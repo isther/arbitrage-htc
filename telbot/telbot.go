@@ -216,7 +216,7 @@ func (t *TelBot) AddTaskControlHandler() *TelBot {
 		addStringSetting("FOK", "")
 		addStringSetting("FOKStandard", "")
 		addStringSetting("Future", "")
-		addStringSetting("OnlyFuture", "")
+		addStringSetting("OnlyMode1", "")
 		content += "\nFee: \n"
 		addStringSetting("UseBNB", "")
 		addStringSetting("BNBMinQty", "")
