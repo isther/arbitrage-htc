@@ -40,6 +40,8 @@ type BALANCE struct {
 	balances        map[string]string
 	updateBalanceCh chan struct{}
 
+	canBuy bool
+
 	balanceViews []BalanceView
 
 	L sync.RWMutex
@@ -49,6 +51,7 @@ func NewBALANCE() *BALANCE {
 	return &BALANCE{
 		balances:        make(map[string]string),
 		updateBalanceCh: make(chan struct{}),
+		canBuy:          true,
 		balanceViews:    make([]BalanceView, 0),
 		L:               sync.RWMutex{},
 	}
@@ -105,31 +108,16 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 			free := utils.StringToDecimal(v.Free)
 			if free.LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
 				if !next &&
-					viper.GetBool("AutoBuyBNB") {
-					var (
-						usdt = utils.StringToDecimal(b.balances["USDT"])
-						btc  = utils.StringToDecimal(b.balances["BTC"])
-					)
-					res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
-					if err != nil {
-						return
-					}
-					for _, v := range res {
-						if v.Symbol == "BTCUSDT" {
-							price := utils.StringToDecimal(v.Price)
-							if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
-								logrus.Error("BNB and USDT not sufficient --- Program stop")
-								time.Sleep(time.Second * 1)
-								panic("BNB and USDT not sufficient --- Program stop")
-							}
-						}
-					}
-
+					viper.GetBool("AutoBuyBNB") &&
+					b.canBuy {
 					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, viper.Get("AutoBuyBNBQty").(decimal.Decimal))
 					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
 					b.updateBinanceSpotBalance(true, assets...)
 					return
 				}
+				logrus.Error("BNB and USDT not sufficient --- Program stop")
+				time.Sleep(time.Second * 1)
+				panic("BNB and USDT not sufficient --- Program stop")
 			}
 		}
 
@@ -139,6 +127,23 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 			}
 		}
 
+		var (
+			usdt = utils.StringToDecimal(b.balances["USDT"])
+			btc  = utils.StringToDecimal(b.balances["BTC"])
+		)
+		res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		for _, v := range res {
+			if v.Symbol == "BTCUSDT" {
+				price := utils.StringToDecimal(v.Price)
+				if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+					b.canBuy = false
+				}
+			}
+		}
 	}
 }
 
@@ -154,25 +159,8 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 			free := utils.StringToDecimal(v.WalletBalance)
 			if free.LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
 				if !next &&
-					viper.GetBool("AutoBuyBNB") {
-					var (
-						usdt = utils.StringToDecimal(b.balances["USDT"])
-						btc  = utils.StringToDecimal(b.balances["BTC"])
-					)
-					res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
-					if err != nil {
-						return
-					}
-					for _, v := range res {
-						if v.Symbol == "BTCUSDT" {
-							price := utils.StringToDecimal(v.Price)
-							if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
-								logrus.Error("BNB and USDT not sufficient --- Program stop")
-								time.Sleep(time.Second * 1)
-								panic("BNB and USDT not sufficient --- Program stop")
-							}
-						}
-					}
+					viper.GetBool("AutoBuyBNB") &&
+					b.canBuy {
 					// buy
 					b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, viper.Get("AutoBuyBNBQty").(decimal.Decimal))
 					logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
@@ -182,12 +170,33 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 					b.updateBinanceFuturesBalance(true, assets...)
 					return
 				}
+				logrus.Error("BNB and USDT not sufficient --- Program stop")
+				time.Sleep(time.Second * 1)
+				panic("BNB and USDT not sufficient --- Program stop")
 			}
 		}
 
 		for _, asset := range assets {
 			if v.Asset == asset {
 				b.balances[asset] = v.WalletBalance
+			}
+		}
+
+		var (
+			usdt = utils.StringToDecimal(b.balances["USDT"])
+			btc  = utils.StringToDecimal(b.balances["BTC"])
+		)
+		res, err := utils.NewBinanceClient().NewListPricesService().Symbol("BTCUSDT").Do(context.Background())
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		for _, v := range res {
+			if v.Symbol == "BTCUSDT" {
+				price := utils.StringToDecimal(v.Price)
+				if usdt.Sub(btc.Mul(price)).LessThan(viper.Get("AutoBuyBNBQty").(decimal.Decimal)) {
+					b.canBuy = false
+				}
 			}
 		}
 	}
