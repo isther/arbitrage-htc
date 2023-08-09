@@ -129,8 +129,7 @@ func (b *BALANCE) check(assets ...string) string {
 
 	qty, ok := b.balance(price)
 	if ok {
-		free := utils.StringToDecimal(b.balances["BNB"])
-		if free.LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
+		if utils.StringToDecimal(b.balances["BNB"]).LessThan(viper.Get("BNBMinQty").(decimal.Decimal)) {
 			if viper.GetBool("AutoBuyBNB") {
 				b.tradeWithQuoteQty(getSymbol([2]string{assets[0], "BNB"}), binancesdk.SideTypeBuy, viper.Get("AutoBuyBNBQty").(decimal.Decimal))
 				logrus.Infof("BNB not sufficient --- try buying with %s", assets[0])
@@ -163,7 +162,7 @@ func (b *BALANCE) balance(price decimal.Decimal) (string, bool) {
 	if maxQty.Mul(price).LessThan(decimal.NewFromFloat(12.0)) {
 		return "", false
 	} else {
-		return maxQty.String(), true
+		return maxQty.Truncate(4).String(), true
 	}
 }
 

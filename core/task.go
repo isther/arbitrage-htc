@@ -843,7 +843,6 @@ func (t *Task) Stop() {
 				t.status = STOP
 				return
 			}
-			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 }
