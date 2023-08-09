@@ -147,13 +147,10 @@ func (b *BALANCE) check(assets ...string) string {
 func (b *BALANCE) balance(price decimal.Decimal) (string, bool) {
 	var (
 		usdt          = utils.StringToDecimal(b.balances["USDT"])
-		btc           = utils.StringToDecimal(b.balances["BTC"])
-		maxQty        = utils.StringToDecimal(viper.GetString("MaxQty"))
+		maxQty        = utils.StringToDecimal(b.balances["BTC"]).Truncate(4)
 		autobuyBNBQty = viper.Get("AutoBuyBNBQty").(decimal.Decimal)
 		adjustSize    = decimal.NewFromFloat(0.0001)
 	)
-
-	maxQty = decimal.Min(maxQty, btc)
 
 	for usdt.Sub(maxQty.Mul(price)).LessThan(autobuyBNBQty) {
 		maxQty = maxQty.Sub(adjustSize)
