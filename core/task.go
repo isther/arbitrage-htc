@@ -935,7 +935,7 @@ func (t *Task) UpdateBalance() {
 	qty := t.Balance.BalanceUpdate()
 	if qty != "" {
 		viper.Set("MaxQty", qty)
-		t.MaxQty()
+		t.maxQty = viper.GetString("MaxQty")
 		logrus.Infof("MaxQty: %s", qty)
 	}
 }
