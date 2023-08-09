@@ -55,8 +55,9 @@ func init() {
 	viper.SetDefault("PauseMaxKlineRatio", decimal.NewFromFloat(100.0))
 	viper.SetDefault("PauseClientTimeOutLimit", 100)
 	viper.SetDefault("WaitDuration", 3000*time.Millisecond)
-	viper.SetDefault("MaxQty", "0.0004")
 	viper.SetDefault("FOKStandard", decimal.NewFromFloat(1.0))
+	viper.SetDefault("MaxQty", "0.0004")
+	viper.SetDefault("AutoAdjustQty", true)
 
 	viper.SetConfigFile(configPath)
 	viper.ReadInConfig()

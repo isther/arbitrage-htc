@@ -261,6 +261,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 	const (
 		CycleNumberSetting SettingType = iota
 		QtySetting
+		AutoAdjustQtySetting
 		RatioMinSetting
 		RatioMaxSetting
 		RatioProfitSetting
@@ -286,6 +287,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		settingsMap = map[string]SettingType{
 			"CycleNumber":             CycleNumberSetting,
 			"Qty":                     QtySetting,
+			"AutoAdjustQty":           AutoAdjustQtySetting,
 			"RatioMin":                RatioMinSetting,
 			"RatioMax":                RatioMaxSetting,
 			"RatioProfit":             RatioProfitSetting,
@@ -305,6 +307,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			"Quit",
 			"CycleNumber",
 			"Qty",
+			"AutoAdjustQty",
 			"RatioMin",
 			"RatioMax",
 			"RatioProfit",
@@ -345,6 +348,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 					tg.NewKeyboardButton("Quit"),
 					tg.NewKeyboardButton("CycleNumber"),
 					tg.NewKeyboardButton("Qty"),
+					tg.NewKeyboardButton("AutoAdjustQty"),
 				)
 
 				buttonLayout.Row(
@@ -360,9 +364,9 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 				buttonLayout.Row(
 					tg.NewKeyboardButton("FOK"),
+					tg.NewKeyboardButton("FOKStandard"),
 					tg.NewKeyboardButton("Future"),
 					tg.NewKeyboardButton("OnlyMode1"),
-					tg.NewKeyboardButton("FOKStandard"),
 				)
 
 				buttonLayout.Row(
@@ -396,7 +400,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			switch value {
 			case QtySetting:
 				session.Step = SessionStringInputting
-			case FOKSetting, FutureSetting, OnlyMode1Setting:
+			case FOKSetting, FutureSetting, OnlyMode1Setting, AutoAdjustQtySetting:
 				session.Step = SessionBoolInputting
 			case CycleNumberSetting, WaitDurationSetting, CloseTimeoutSetting, PauseClientTimeOutLimitSetting:
 				session.Step = SessionIntInputting
@@ -478,6 +482,8 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			case OnlyMode1Setting:
 				viper.Set("OnlyMode1", value)
 				t.TaskControl.OnlyMode1()
+			case AutoAdjustQtySetting:
+				viper.Set("AutoAdjustQty", value)
 			}
 
 			sessionManager.Reset(session)
