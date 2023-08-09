@@ -2,11 +2,17 @@
 
 Binance...
 
+⚠️  MaxQty 变量无需设置，根据账户平衡最大购买数程序自动修改。
+
 ## Start
 
 1. 安装docker docker-compose
 
 ```bash
+make install-ubuntu
+
+or
+
 sudo apt upgrade -y
 sudo install docker docker-compose cmake -y
 ```

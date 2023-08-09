@@ -8,6 +8,11 @@ run:
 	export BINANCE_SECRET=${BINANCE_SECRET} && \
 	go run main.go
 
+install-ubuntu:
+	@curl -fsSL https://test.docker.com -o install-docker.sh
+	@sudo sh install-docker.sh
+	@sudo apt install docker-compose
+
 docker-run:
 	@docker-compose up -d --force-recreate --remove-orphans --build cmd
 
