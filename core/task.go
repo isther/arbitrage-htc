@@ -722,6 +722,9 @@ func (t *Task) binanceFOKTrade(symbol string, side binancesdk.SideType, price, q
 		Type(binancesdk.OrderTypeLimit).Price(price).Quantity(qty).
 		Do(context.Background())
 	if err != nil {
+		if strings.Contains(err.Error(), "code=-2010") {
+			t.Balance.BalanceUpdate()
+		}
 		logrus.Errorf("Spot FOK Order --- Error: %v, %s", res, err)
 		time.Sleep(time.Millisecond * 50)
 		return "", false
@@ -749,6 +752,9 @@ func (t *Task) binanceFuturesFOKTrade(symbol string, side futures.SideType, pric
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(context.Background())
 	if err != nil {
+		if strings.Contains(err.Error(), "code=-2010") {
+			t.Balance.BalanceUpdate()
+		}
 		logrus.Errorf("Future FOK Order --- Error: %v, %s", res, err.Error())
 		time.Sleep(time.Millisecond * 50)
 		return "", false

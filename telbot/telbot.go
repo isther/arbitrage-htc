@@ -212,6 +212,7 @@ func (t *TelBot) AddTaskControlHandler() *TelBot {
 		addTimeSetting("CloseTimeout")
 		addTimeSetting("WaitDuration")
 		addStringSetting("MaxQty", "")
+		addStringSetting("AutoAdjustQty", "")
 		content += "\nMode: \n"
 		addStringSetting("FOK", "")
 		addStringSetting("FOKStandard", "")
