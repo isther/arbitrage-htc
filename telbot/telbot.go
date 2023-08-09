@@ -523,7 +523,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			case PauseMaxKlineRatioSetting:
 				viper.Set("PauseMaxKlineRatio", decimal.NewFromFloat(value))
 			case UpdateBalanceSetting:
-				viper.Set("MaxQty", fmt.Sprintln(value))
+				viper.Set("MaxQty", fmt.Sprintf("%.4f",value))
 				t.TaskControl.UpdateBalance()
 			}
 
