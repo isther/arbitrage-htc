@@ -124,7 +124,7 @@ func (b *BALANCE) updateBinanceSpotBalance(next bool, assets ...string) {
 					if v.Symbol == "BTCUSDT" {
 						var (
 							price  = utils.StringToDecimal(v.Price)
-							maxQty = viper.Get("MaxQty").(decimal.Decimal)
+							maxQty = utils.StringToDecimal(viper.GetString("MaxQty"))
 
 							autoAdjust = viper.GetBool("AutoAdjustQty")
 							adjustSize = decimal.NewFromFloat(0.0001)
@@ -187,7 +187,7 @@ func (b *BALANCE) updateBinanceFuturesBalance(next bool, assets ...string) {
 					if v.Symbol == "BTCUSDT" {
 						var (
 							price  = utils.StringToDecimal(v.Price)
-							maxQty = viper.Get("MaxQty").(decimal.Decimal)
+							maxQty = utils.StringToDecimal(viper.GetString("MaxQty"))
 
 							autoAdjust = viper.GetBool("AutoAdjustQty")
 							adjustSize = decimal.NewFromFloat(0.0001)
