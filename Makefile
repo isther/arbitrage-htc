@@ -1,6 +1,12 @@
+include .env
+
 run:
 	@go mod tidy
-	@go run main.go
+
+	@export TG_TOKEN=${TG_TOKEN} && \
+	export BINANCE_API=${BINANCE_API} && \
+	export BINANCE_SECRET=${BINANCE_SECRET} && \
+	go run main.go
 
 docker-run:
 	@docker-compose up -d --force-recreate --remove-orphans --build cmd

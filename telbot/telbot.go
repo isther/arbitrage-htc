@@ -219,7 +219,6 @@ func (t *TelBot) AddTaskControlHandler() *TelBot {
 		addStringSetting("Future", "")
 		addStringSetting("OnlyMode1", "")
 		content += "\nFee: \n"
-		addStringSetting("UseBNB", "")
 		addStringSetting("BNBMinQty", "")
 		addStringSetting("AutoBuyBNB", "")
 		addStringSetting("AutoBuyBNBQty", "")
@@ -263,6 +262,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		CycleNumberSetting SettingType = iota
 		QtySetting
 		AutoAdjustQtySetting
+		UpdateBalanceSetting
 		RatioMinSetting
 		RatioMaxSetting
 		RatioProfitSetting
@@ -289,6 +289,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			"CycleNumber":             CycleNumberSetting,
 			"Qty":                     QtySetting,
 			"AutoAdjustQty":           AutoAdjustQtySetting,
+			"UpdateBalance":           UpdateBalanceSetting,
 			"RatioMin":                RatioMinSetting,
 			"RatioMax":                RatioMaxSetting,
 			"RatioProfit":             RatioProfitSetting,
@@ -309,6 +310,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			"CycleNumber",
 			"Qty",
 			"AutoAdjustQty",
+			"UpdateBalance",
 			"RatioMin",
 			"RatioMax",
 			"RatioProfit",
@@ -350,6 +352,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 					tg.NewKeyboardButton("CycleNumber"),
 					tg.NewKeyboardButton("Qty"),
 					tg.NewKeyboardButton("AutoAdjustQty"),
+					tg.NewKeyboardButton("UpdateBalance"),
 				)
 
 				buttonLayout.Row(
@@ -405,7 +408,7 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				session.Step = SessionBoolInputting
 			case CycleNumberSetting, WaitDurationSetting, CloseTimeoutSetting, PauseClientTimeOutLimitSetting:
 				session.Step = SessionIntInputting
-			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting:
+			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting, UpdateBalanceSetting:
 				session.Step = SessionFloatInputting
 			}
 
@@ -519,6 +522,9 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				viper.Set("PauseMinKlineRatio", decimal.NewFromFloat(value))
 			case PauseMaxKlineRatioSetting:
 				viper.Set("PauseMaxKlineRatio", decimal.NewFromFloat(value))
+			case UpdateBalanceSetting:
+				viper.Set("MaxQty", fmt.Sprintln(value))
+				t.TaskControl.UpdateBalance()
 			}
 
 			sessionManager.Reset(session)

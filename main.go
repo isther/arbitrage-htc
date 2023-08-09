@@ -40,7 +40,6 @@ func init() {
 	viper.SetDefault("OnlyMode1", false)
 
 	// Fee
-	viper.SetDefault("UseBNB", true)
 	viper.SetDefault("BNBMinQty", decimal.NewFromFloat(0.002))
 	viper.SetDefault("AutoBuyBNB", true)
 	viper.SetDefault("AutoBuyBNBQty", decimal.NewFromFloat(5.0))

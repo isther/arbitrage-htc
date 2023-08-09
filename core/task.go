@@ -190,6 +190,7 @@ func (t *Task) Run() {
 	// Init
 	t.mode.Store(0)
 	t.status = STOP
+	t.UpdateBalance()
 
 	for {
 		select {
@@ -213,7 +214,7 @@ func (t *Task) completeTask() {
 	defer t.lock.Unlock()
 
 	t.completedCnt++
-	t.Balance.BalanceUpdate()
+	t.UpdateBalance()
 	if t.cycleNumber == t.completedCnt {
 		logrus.Info("Task completed", t.completedCnt)
 		t.status = STOP
@@ -723,7 +724,7 @@ func (t *Task) binanceFOKTrade(symbol string, side binancesdk.SideType, price, q
 		Do(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "code=-2010") {
-			t.Balance.BalanceUpdate()
+			t.UpdateBalance()
 		}
 		logrus.Errorf("Spot FOK Order --- Error: %v, %s", res, err)
 		time.Sleep(time.Millisecond * 50)
@@ -753,7 +754,7 @@ func (t *Task) binanceFuturesFOKTrade(symbol string, side futures.SideType, pric
 		Do(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "code=-2010") {
-			t.Balance.BalanceUpdate()
+			t.UpdateBalance()
 		}
 		logrus.Errorf("Future FOK Order --- Error: %v, %s", res, err.Error())
 		time.Sleep(time.Millisecond * 50)
@@ -818,6 +819,7 @@ type TaskControl interface {
 	RatioMin()
 	RatioMax()
 	RatioProfit()
+	UpdateBalance()
 }
 
 func (t *Task) GetInfo() string {
@@ -928,4 +930,13 @@ func (t *Task) RatioProfit() {
 	defer t.lock.Unlock()
 
 	t.ratioProfit = viper.Get("RatioProfit").(decimal.Decimal)
+}
+
+func (t *Task) UpdateBalance() {
+	qty := t.Balance.BalanceUpdate()
+	if qty != "" {
+		viper.Set("MaxQty", qty)
+		t.MaxQty()
+		logrus.Infof("MaxQty: %s", qty)
+	}
 }
