@@ -260,8 +260,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 	type SettingType int8
 	const (
 		CycleNumberSetting SettingType = iota
-		QtySetting
-		AutoAdjustQtySetting
 		UpdateBalanceSetting
 		RatioMinSetting
 		RatioMaxSetting
@@ -287,8 +285,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 	var (
 		settingsMap = map[string]SettingType{
 			"CycleNumber":             CycleNumberSetting,
-			"Qty":                     QtySetting,
-			"AutoAdjustQty":           AutoAdjustQtySetting,
 			"UpdateBalance":           UpdateBalanceSetting,
 			"RatioMin":                RatioMinSetting,
 			"RatioMax":                RatioMaxSetting,
@@ -350,9 +346,14 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				buttonLayout.Row(
 					tg.NewKeyboardButton("Quit"),
 					tg.NewKeyboardButton("CycleNumber"),
-					tg.NewKeyboardButton("Qty"),
-					tg.NewKeyboardButton("AutoAdjustQty"),
 					tg.NewKeyboardButton("UpdateBalance"),
+				)
+
+				buttonLayout.Row(
+					tg.NewKeyboardButton("FOK"),
+					tg.NewKeyboardButton("FOKStandard"),
+					tg.NewKeyboardButton("Future"),
+					tg.NewKeyboardButton("OnlyMode1"),
 				)
 
 				buttonLayout.Row(
@@ -364,13 +365,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				buttonLayout.Row(
 					tg.NewKeyboardButton("CloseTimeout"),
 					tg.NewKeyboardButton("WaitDuration"),
-				)
-
-				buttonLayout.Row(
-					tg.NewKeyboardButton("FOK"),
-					tg.NewKeyboardButton("FOKStandard"),
-					tg.NewKeyboardButton("Future"),
-					tg.NewKeyboardButton("OnlyMode1"),
 				)
 
 				buttonLayout.Row(
@@ -402,14 +396,14 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			}
 
 			switch value {
-			case QtySetting:
-				session.Step = SessionStringInputting
-			case FOKSetting, FutureSetting, OnlyMode1Setting, AutoAdjustQtySetting:
+			case FOKSetting, FutureSetting, OnlyMode1Setting:
 				session.Step = SessionBoolInputting
 			case CycleNumberSetting, WaitDurationSetting, CloseTimeoutSetting, PauseClientTimeOutLimitSetting:
 				session.Step = SessionIntInputting
-			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting, UpdateBalanceSetting:
+			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting:
 				session.Step = SessionFloatInputting
+			case UpdateBalanceSetting:
+				t.TaskControl.UpdateBalance()
 			}
 
 			session.SettingType = value
@@ -425,12 +419,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 		// Input setting value type of string
 		Message(func(ctx context.Context, msg *tgb.MessageUpdate) error {
 			session := sessionManager.Get(ctx)
-
-			switch session.SettingType {
-			case QtySetting:
-				viper.Set("MaxQty", msg.Text)
-				t.TaskControl.MaxQty()
-			}
 
 			sessionManager.Reset(session)
 			return msg.Update.Reply(ctx, msg.Answer("Setting was saved"))
@@ -486,8 +474,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			case OnlyMode1Setting:
 				viper.Set("OnlyMode1", value)
 				t.TaskControl.OnlyMode1()
-			case AutoAdjustQtySetting:
-				viper.Set("AutoAdjustQty", value)
 			}
 
 			sessionManager.Reset(session)
@@ -522,8 +508,6 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 				viper.Set("PauseMinKlineRatio", decimal.NewFromFloat(value))
 			case PauseMaxKlineRatioSetting:
 				viper.Set("PauseMaxKlineRatio", decimal.NewFromFloat(value))
-			case UpdateBalanceSetting:
-				t.TaskControl.UpdateBalance()
 			}
 
 			sessionManager.Reset(session)
