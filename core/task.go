@@ -851,7 +851,10 @@ func (t *Task) Start() {
 	if t.completedCnt >= t.cycleNumber {
 		t.completedCnt = 0
 	}
-	t.status = RUNNING
+
+	if t.status == STOP {
+		t.status = RUNNING
+	}
 }
 
 func (t *Task) MaxQty() {
