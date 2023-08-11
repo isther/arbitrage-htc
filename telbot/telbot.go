@@ -407,7 +407,8 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 
 				return msg.Update.Reply(
 					ctx,
-					msg.Answer("UpdateBalance success, current qty: "+qty),
+					msg.Answer("UpdateBalance success, current qty: "+qty).
+						ReplyMarkup(tg.NewReplyKeyboardRemove()),
 				)
 			}
 
