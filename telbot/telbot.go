@@ -402,7 +402,13 @@ func (t *TelBot) AddSettingHandler() *TelBot {
 			case RatioMinSetting, RatioMaxSetting, RatioProfitSetting, FOKStandardSetting, PauseMinKlineRatioSetting, PauseMaxKlineRatioSetting:
 				session.Step = SessionFloatInputting
 			case UpdateBalanceSetting:
-				t.TaskControl.UpdateBalance()
+				qty := t.TaskControl.UpdateBalance()
+				sessionManager.Reset(session)
+
+				return msg.Update.Reply(
+					ctx,
+					msg.Answer("UpdateBalance success, current qty: "+qty),
+				)
 			}
 
 			session.SettingType = value

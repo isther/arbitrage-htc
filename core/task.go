@@ -819,7 +819,7 @@ type TaskControl interface {
 	RatioMin()
 	RatioMax()
 	RatioProfit()
-	UpdateBalance()
+	UpdateBalance() string
 }
 
 func (t *Task) GetInfo() string {
@@ -934,10 +934,11 @@ func (t *Task) RatioProfit() {
 	t.ratioProfit = viper.Get("RatioProfit").(decimal.Decimal)
 }
 
-func (t *Task) UpdateBalance() {
+func (t *Task) UpdateBalance() string {
 	qty := t.Balance.BalanceUpdate()
 	if qty != "" {
 		viper.Set("MaxQty", qty)
 		t.maxQty = viper.GetString("MaxQty")
 	}
+	return qty
 }
