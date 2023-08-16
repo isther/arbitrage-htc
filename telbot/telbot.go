@@ -219,7 +219,6 @@ func (t *TelBot) AddTaskControlHandler() *TelBot {
 		addStringSetting("OnlyMode1", "")
 		content += "\nFee: \n"
 		addStringSetting("BNBMinQty", "")
-		addStringSetting("AutoBuyBNB", "")
 		addStringSetting("AutoBuyBNBQty", "")
 		content += "\nPause: \n"
 		addStringSetting("PauseMinKlineRatio", "")

@@ -940,5 +940,5 @@ func (t *Task) UpdateBalance() string {
 		viper.Set("MaxQty", qty)
 		t.maxQty = viper.GetString("MaxQty")
 	}
-	return qty
+	return viper.GetString("MaxQty")
 }
