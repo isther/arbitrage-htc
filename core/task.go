@@ -64,9 +64,6 @@ type Task struct {
 	status       TaskStatus
 	mode         atomic.Int32
 	completedCnt int
-	gain         decimal.Decimal
-	profit       decimal.Decimal
-	deficit      decimal.Decimal
 
 	mode1Ratio decimal.Decimal
 	mode2Ratio decimal.Decimal
@@ -124,9 +121,6 @@ func NewTask(
 
 		status:       RUNNING,
 		completedCnt: 0,
-		gain:         decimal.Zero,
-		profit:       decimal.Zero,
-		deficit:      decimal.Zero,
 
 		mode1Ratio: decimal.Zero,
 		mode2Ratio: decimal.Zero,
@@ -275,13 +269,6 @@ func (t *Task) trade() {
 
 				t.lock.Lock()
 				defer t.lock.Unlock()
-				if profit.IsPositive() {
-					t.gain = t.gain.Add(profit)
-				} else {
-					t.deficit = t.deficit.Add(profit)
-				}
-
-				t.profit = t.gain.Add(t.deficit)
 
 			}(t.mode.Load(), t.openID, t.closeID)
 			t.completeTask()
@@ -824,13 +811,10 @@ type TaskControl interface {
 
 func (t *Task) GetInfo() string {
 	return fmt.Sprintf(
-		"Status:%s|Progress:%d/%d|Gain:%s|Profit:%s|Deficit:%s|Mode1:%s|Mode2:%s",
+		"Status:%s|Progress:%d/%d|Mode1:%s|Mode2:%s",
 		t.status.String(),
 		t.completedCnt,
 		t.cycleNumber,
-		t.gain.String(),
-		t.profit.String(),
-		t.deficit.String(),
 		t.mode1Ratio.String(),
 		t.mode2Ratio.String(),
 	)
