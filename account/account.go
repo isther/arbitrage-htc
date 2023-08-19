@@ -4,13 +4,16 @@ type Account struct {
 	ExchangeInfo
 	Balance
 	OrderList
+	CntOutputer
 }
 
 func NewAccount() *Account {
+	counter := NewCounter()
 	return &Account{
 		ExchangeInfo: NewexchangeInfoer(),
 		Balance:      NewBALANCE(),
-		OrderList:    NewORDER(),
+		OrderList:    NewORDER(counter),
+		CntOutputer:  counter,
 	}
 }
 

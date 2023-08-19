@@ -33,6 +33,7 @@ type TelBot struct {
 	cancel context.CancelFunc
 
 	account.BalanceInfo
+	account.CntOutputer
 	core.TaskControl
 }
 
@@ -67,6 +68,7 @@ func (t *TelBot) Run() {
 			{Command: "log_enable", Description: "Enable log"},
 			{Command: "log_disable", Description: "Disable log"},
 			{Command: "account", Description: "Get account info"},
+			{Command: "profit", Description: "Get profit info"},
 			{Command: "task", Description: "Get task info"},
 			{Command: "tstart", Description: "Run task"},
 			{Command: "tstop", Description: "Stop task"},
@@ -76,7 +78,7 @@ func (t *TelBot) Run() {
 	t.
 		AddStartHandler().
 		AddEnableLogHandler().AddDisableLogHandler().
-		AddAccountHandler().AddTaskControlHandler().
+		AddAccountHandler().AddTaskControlHandler().AddProfitHandler().
 		AddSettingHandler()
 
 	if err := tgb.NewPoller(
@@ -160,6 +162,31 @@ func (t *TelBot) AddAccountHandler() *TelBot {
 				tg.NewFileArgUpload(inputFile),
 			).DoVoid(ctx)
 		}, tgb.Command("account"),
+	)
+	return t
+}
+
+func (t *TelBot) AddProfitHandler() *TelBot {
+	t.Router.Message(
+		func(ctx context.Context, msg *tgb.MessageUpdate) error {
+			if err := msg.Update.Reply(ctx, msg.AnswerChatAction(tg.ChatActionUploadPhoto)); err != nil {
+				logrus.Errorf("answer chat action: %v", err)
+				return fmt.Errorf("answer chat action: %w", err)
+			}
+
+			var imgFilePath = t.CntOutputer.Chart()
+
+			inputFile, err := tg.NewInputFileLocal(imgFilePath)
+			if err != nil {
+				logrus.Error(err)
+				return err
+			}
+			defer inputFile.Close()
+
+			return msg.AnswerPhoto(
+				tg.NewFileArgUpload(inputFile),
+			).DoVoid(ctx)
+		}, tgb.Command("profit"),
 	)
 	return t
 }

@@ -17,12 +17,14 @@ import (
 
 type OrderList interface {
 	Run()
-	OrderIDsUpdate(orderIDs *OrderIDs) (*OrderInfo, *OrderInfo)
+	OrderIDsUpdate(orderIDs *OrderIDs)
 }
 
 type ORDER struct {
 	binanceOrders   map[string]OrderInfo
 	binanceOrdersCh chan OrderInfo
+
+	CntInputer
 
 	L sync.RWMutex
 }
@@ -39,10 +41,11 @@ type OrderInfo struct {
 	Qty   decimal.Decimal
 }
 
-func NewORDER() *ORDER {
+func NewORDER(cntInputer CntInputer) *ORDER {
 	return &ORDER{
 		binanceOrders:   make(map[string]OrderInfo),
 		binanceOrdersCh: make(chan OrderInfo),
+		CntInputer:      cntInputer,
 		L:               sync.RWMutex{},
 	}
 }
@@ -64,8 +67,29 @@ func (o *ORDER) Run() {
 	}
 }
 
-func (o *ORDER) OrderIDsUpdate(orderIDs *OrderIDs) (*OrderInfo, *OrderInfo) {
-	return o.getOrders(orderIDs)
+func (o *ORDER) OrderIDsUpdate(orderIDs *OrderIDs) {
+	var (
+		openOrder, closeOrder = o.getOrders(orderIDs)
+		mode                  = orderIDs.Mode
+	)
+	var profit decimal.Decimal
+	switch mode {
+	case 1:
+		profit = closeOrder.Price.Sub(openOrder.Price)
+	case 2:
+		profit = openOrder.Price.Sub(closeOrder.Price)
+	default:
+		panic("Invalid mode")
+	}
+
+	o.CntInputer.AddOrder(profit, time.Now())
+
+	logrus.Info(fmt.Sprintf("Mode%d \n[Open]: BTC/USDT: %s\n[Close]: BTC/USDT: %s\n[Actual profit] BTC/USDT: %s",
+		mode,
+		openOrder.Price.String(),
+		closeOrder.Price.String(),
+		profit.String(),
+	))
 }
 
 func (o *ORDER) startBinanceAccountServer() {

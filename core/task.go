@@ -244,31 +244,11 @@ func (t *Task) trade() {
 			t.closeID = t.close(ctx)
 
 			go func(mode int32, openID, closeID string) {
-				openOrder, closeOrder := t.OrderList.OrderIDsUpdate(&account.OrderIDs{
+				t.OrderList.OrderIDsUpdate(&account.OrderIDs{
 					Mode:         mode,
 					OpenOrderID:  openID,
 					CloseOrderID: closeID,
 				})
-
-				var profit decimal.Decimal
-				switch mode {
-				case 1:
-					profit = closeOrder.Price.Sub(openOrder.Price)
-				case 2:
-					profit = openOrder.Price.Sub(closeOrder.Price)
-				default:
-					panic("Invalid mode")
-				}
-
-				logrus.Info(fmt.Sprintf("Mode%d \n[Open]: BTC/USDT: %s\n[Close]: BTC/USDT: %s\n[Actual profit] BTC/USDT: %s",
-					mode,
-					openOrder.Price.String(),
-					closeOrder.Price.String(),
-					profit.String(),
-				))
-
-				t.lock.Lock()
-				defer t.lock.Unlock()
 
 			}(t.mode.Load(), t.openID, t.closeID)
 			t.completeTask()
