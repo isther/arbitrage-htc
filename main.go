@@ -123,7 +123,7 @@ func main() {
 	go task.Run()
 	go arbitrageManager.Run()
 	arbitrageManager.AddUpdateEvent(task)
-	telBot := telbot.NewTelBot(viper.GetString("Telegram.Token"), account.Balance, task)
+	telBot := telbot.NewTelBot(viper.GetString("Telegram.Token"), account.Balance, task, account.CntOutputer)
 	logrus.AddHook(telBot)
 	go telBot.Run()
 

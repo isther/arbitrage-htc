@@ -37,7 +37,7 @@ type TelBot struct {
 	core.TaskControl
 }
 
-func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.TaskControl) *TelBot {
+func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.TaskControl, cntOutputer account.CntOutputer) *TelBot {
 	var ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
 	return &TelBot{
 		Client:      tg.New(token),
@@ -48,6 +48,7 @@ func NewTelBot(token string, balanceInfo account.BalanceInfo, taskInfoView core.
 		cancel:      cancel,
 		BalanceInfo: balanceInfo,
 		TaskControl: taskInfoView,
+		CntOutputer: cntOutputer,
 	}
 }
 
