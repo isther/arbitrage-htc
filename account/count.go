@@ -70,7 +70,7 @@ func (c *Counter) Chart() string {
 		if firstAxis == 0 {
 			firstAxis = i
 		}
-		xAxisValue = append(xAxisValue, t.Format("15:04"))
+		xAxisValue = append(xAxisValue, t.Add(8*time.Hour).Format("15:04"))
 	}
 
 	p, err := charts.LineRender(
