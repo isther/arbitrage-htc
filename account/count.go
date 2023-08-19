@@ -34,8 +34,8 @@ type Counter struct {
 func NewCounter() *Counter {
 	return &Counter{
 		totalProfit:  decimal.Zero,
-		times:        make([]time.Time, 0),
-		profitValues: make([]float64, 0),
+		times:        []time.Time{time.Now()},
+		profitValues: []float64{0.0},
 		l:            sync.RWMutex{},
 	}
 }
