@@ -76,7 +76,7 @@ func (c *Counter) Chart() string {
 	p, err := charts.LineRender(
 		[][]float64{c.profitValues},
 		charts.FontFamilyOptionFunc("noto"),
-		charts.TitleTextOptionFunc("Profit"),
+		charts.TitleTextOptionFunc(fmt.Sprintf("Profit: %s", c.totalProfit.String())),
 		charts.LegendLabelsOptionFunc([]string{"Profit"}, "128"),
 		charts.XAxisDataOptionFunc(xAxisValue),
 		func(opt *charts.ChartOption) {
