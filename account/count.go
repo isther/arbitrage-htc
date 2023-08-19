@@ -9,6 +9,7 @@ import (
 
 	"github.com/isther/arbitrage-htc/utils"
 	"github.com/shopspring/decimal"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/vicanso/go-charts/v2"
 )
@@ -93,7 +94,7 @@ func (c *Counter) Chart() string {
 		},
 	)
 	if err != nil {
-		panic(err)
+		logrus.Info(err)
 	}
 
 	f, _ := os.Create(imgFilePath)
@@ -101,7 +102,7 @@ func (c *Counter) Chart() string {
 
 	buf, err := p.Bytes()
 	if err != nil {
-		panic(err)
+		logrus.Info(err)
 	}
 
 	f.Write(buf)
