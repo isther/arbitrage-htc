@@ -50,7 +50,7 @@ func (c *Counter) AddOrder(profit decimal.Decimal, t time.Time) {
 	)
 
 	c.totalProfit = c.totalProfit.Add(truelyProfit)
-	p, _ := c.totalProfit.Add(truelyProfit).Float64()
+	p, _ := c.totalProfit.Float64()
 
 	c.times = append(c.times, t)
 	c.profitValues = append(c.profitValues, p)
