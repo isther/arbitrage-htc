@@ -82,7 +82,9 @@ func (o *ORDER) OrderIDsUpdate(orderIDs *OrderIDs) {
 		panic("Invalid mode")
 	}
 
-	o.CntInputer.AddOrder(profit, time.Now())
+	if !openOrder.Price.IsZero() && !closeOrder.Price.IsZero() {
+		o.CntInputer.AddOrder(profit, time.Now())
+	}
 
 	logrus.Info(fmt.Sprintf("Mode%d \n[Open]: BTC/USDT: %s\n[Close]: BTC/USDT: %s\n[Actual profit] BTC/USDT: %s",
 		mode,
